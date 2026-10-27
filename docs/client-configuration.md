@@ -507,7 +507,7 @@ another definition later reuses the same anchor name.
 Hermes personal skills install under the active Hermes home's `skills` directory.
 Setup, doctor and uninstall share REA's sticky-profile resolver.
 A custom `HERMES_HOME` outside the platform default home
-reads its own `active_profile`. An existing override directory physically inside
+reads its own `active_profile`. An override directory physically inside
 the default home uses that default home's sticky selection and profile root
 together.
 
@@ -527,16 +527,15 @@ the profile Hermes actually uses and point `HERMES_HOME` directly at that
 `profiles/<name>` directory before setup. Compatibility is tracked in
 [#3939](https://github.com/morluto/rea/issues/3939).
 
-Before setup, create an override directory whose path includes a symlink,
-junction, or another prefix that resolves to a different spelling. When the
-override does not exist, REA falls back to its lexical spelling for containment.
-This can miss physical containment — for example, beneath a symlinked default
-home or `HOME`/`USERPROFILE`/`LOCALAPPDATA` ancestor — ignoring the outer selection
-and planning the override root's configuration. It can also falsely assume
-containment: if `~/.hermes/link` points outside the default home,
-`HERMES_HOME=~/.hermes/link/new` can select the default home's profile even though
-the override lies outside it. Once the override directory exists, REA checks its
-physical location. Inspect setup's previewed destinations before applying changes.
+REA resolves existing ancestor directories before checking physical containment,
+including symlinks and junctions, even when the override directory does not exist.
+An override beneath a symlinked default home therefore uses the default home's
+sticky selection. If `~/.hermes/link` points outside the default home,
+`HERMES_HOME=~/.hermes/link/new` instead uses that override root, whether or not
+`new` exists. Previewed destinations retain the configured path spelling.
+An unreadable path or dangling alias leaves the home unresolved; repair that path
+before configuring Hermes. Inspect setup's previewed destinations before applying
+changes.
 
 An explicit `HERMES_HOME` pointing to `profiles/<name>` selects that named
 profile directly, bypassing sticky selection. An invalid, missing or deleted
