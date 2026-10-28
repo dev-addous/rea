@@ -4,13 +4,17 @@ import { rename } from "node:fs/promises";
 export const renameOpenParent = async (
   from: string,
   to: string,
+  options: {
+    readonly platform?: NodeJS.Platform;
+    readonly rename?: typeof rename;
+  } = {},
 ): Promise<{ kind: "renamed" } | { kind: "blocked"; cause: unknown }> => {
   try {
-    await rename(from, to);
+    await (options.rename ?? rename)(from, to);
     return { kind: "renamed" };
   } catch (cause: unknown) {
     if (
-      process.platform === "win32" &&
+      (options.platform ?? process.platform) === "win32" &&
       cause instanceof Error &&
       "code" in cause &&
       cause.code === "EPERM"

@@ -301,9 +301,14 @@ it.each(cases)(
   },
 );
 
-it.each(cases)(
-  "handles attempted replacement at the admitted $format pathname",
-  async ({ inputFormat, reader, bytes }) => {
+it.each(
+  cases.flatMap((item) => [
+    { ...item, simulateWindowsRefusal: false },
+    { ...item, simulateWindowsRefusal: true },
+  ]),
+)(
+  "handles attempted replacement at the admitted $format pathname (simulated refusal: $simulateWindowsRefusal)",
+  async ({ inputFormat, reader, bytes, simulateWindowsRefusal }) => {
     const directory = await createTestTempDirectory(
       "rea-embedded-extraction-replacement-",
     );
@@ -326,6 +331,16 @@ it.each(cases)(
           const swap = await renameOpenParent(
             selectedDirectory,
             join(directory, "admitted"),
+            simulateWindowsRefusal
+              ? {
+                  platform: "win32",
+                  rename: async () => {
+                    throw Object.assign(new Error("injected EPERM"), {
+                      code: "EPERM",
+                    });
+                  },
+                }
+              : {},
           );
           if (swap.kind === "blocked") {
             deniedRename = swap.cause;
