@@ -23,7 +23,6 @@ import {
   NativeFixtureRunner as FixtureRunner,
   nativeFixture as fixture,
   nativeMachoTargetForFile,
-  withOtoolMachHeader,
 } from "../../../fixtures/nativeCommands.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
@@ -44,12 +43,13 @@ const inventoryTarget = async (chained = false) => {
   const fixups = Buffer.alloc(16);
   fixups.writeUInt32LE(0x80000034, 0);
   fixups.writeUInt32LE(16, 4);
+  const image = machoImage({
+    cpu: CPU.arm64,
+    commands: chained ? [segment, fixups] : [segment],
+  });
   await writeFile(
     path,
-    machoImage({
-      cpu: CPU.arm64,
-      commands: chained ? [segment, fixups] : [segment],
-    }),
+    Buffer.concat([image, Buffer.alloc(0x4000 - image.byteLength)]),
   );
   return nativeMachoTargetForFile(path);
 };
@@ -289,9 +289,8 @@ it.each([
 
 it("retains native inventory facts from captured Apple tool output", async () => {
   const outputs: Record<string, string> = {};
-  for (const tool of ["lipo", "otool", "nm", "dwarfdump", "vtool"])
+  for (const tool of ["lipo", "nm", "dwarfdump", "vtool"])
     outputs[tool] = await fixture(`dyld-inventory/${tool}.txt`);
-  outputs.otool = withOtoolMachHeader(outputs.otool ?? "");
   outputs["nm:-gju"] = "_puts\n_fixture_weak\n";
   outputs["dyld_info:-imports"] = await fixture("dyld-inventory/imports.txt");
   const exportsOutput = await fixture("dyld-inventory/exports.txt");
@@ -460,9 +459,8 @@ it("retains unfamiliar and competing import boundaries as unknown", () => {
 
 it("uses independent undefined names to resolve chained producer spacing", async () => {
   const outputs: Record<string, string> = {};
-  for (const tool of ["lipo", "otool", "nm", "dwarfdump", "vtool"])
+  for (const tool of ["lipo", "nm", "dwarfdump", "vtool"])
     outputs[tool] = await fixture(`dyld-inventory/${tool}.txt`);
-  outputs.otool = withOtoolMachHeader(outputs.otool ?? "");
   outputs["nm:-gju"] =
     "  _leading\n_literal [weak-import]\n_trailing  \n_weak\n";
   // Actual forced-chained output from the same inert assembler references.
@@ -520,16 +518,8 @@ it("keeps missing and competing undefined-name matches unknown", () => {
 
 it("reports a chained bind addend separately in native inspection", async () => {
   const outputs: Record<string, string> = {};
-  for (const tool of ["lipo", "otool", "nm", "dwarfdump", "vtool"])
+  for (const tool of ["lipo", "nm", "dwarfdump", "vtool"])
     outputs[tool] = await fixture(`dyld-inventory/${tool}.txt`);
-  outputs.otool = withOtoolMachHeader(
-    `${outputs.otool ?? ""}Load command 17
-      cmd LC_DYLD_CHAINED_FIXUPS
-  cmdsize 16
-    dataoff 100
-   datasize 20
-`,
-  );
   outputs["dyld_info:-imports"] =
     "-imports:\n      0x0000 _fixture_data  (from libFixture)\n      0x0001 _fixture_data+0x4  (from libFixture)\n";
   outputs["dyld_info:-exports"] = await fixture("dyld-inventory/exports.txt");

@@ -141,6 +141,7 @@ import {
   NativeMachoSourceVerificationFailure,
 } from "./NativeMachoSource.js";
 import {
+  MachoBinaryFormatError,
   MachoCommandNamesLimitError,
   readMachoCommandNames,
 } from "./MachoCommandNames.js";
@@ -244,7 +245,8 @@ class NativeMacOSClient implements AnalysisClient {
     private readonly tracer: NativeCallTracer,
     private readonly environment: Readonly<NodeJS.ProcessEnv>,
     private readonly privateRuntimeRootFactory:
-      SignatureRuntimeRootFactory | undefined,
+      | SignatureRuntimeRootFactory
+      | undefined,
     private readonly bundleResourceRoot?: ResolvedAppBundleResourceRoot,
     private readonly bundlePlistAvailable = true,
   ) {}
@@ -1325,7 +1327,8 @@ class NativeMacOSClient implements AnalysisClient {
       readonly timeoutMs: number;
       readonly acceptNonZero?: boolean;
       readonly acceptNonZeroIf?:
-        ((capture: NativeCommandCapture) => boolean) | undefined;
+        | ((capture: NativeCommandCapture) => boolean)
+        | undefined;
     },
   ): Promise<Result<NativeCommandCapture, AnalysisError>> {
     // Commands borrow their enclosing operation's admission through finalization.
@@ -1453,6 +1456,8 @@ const nativeMachoSourcePrimary = (
   path: string,
 ): AnalysisError => {
   if (cause instanceof AnalysisError) return cause;
+  if (cause instanceof MachoBinaryFormatError)
+    return new AnalysisOutputError("inspect_macho", cause.message, { cause });
   if (cause instanceof MachoCommandNamesLimitError)
     return new AnalysisResourceConstraintError(
       "inspect_macho",
@@ -1491,6 +1496,8 @@ const nativeMachoSourcePrimary = (
       ...options,
       cause: artifactFileCancellationCause(cause),
     });
+  if (cause instanceof ArtifactReaderFailure && cause.reason === "format")
+    return new AnalysisOutputError("inspect_macho", cause.message, options);
   if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
     return new AnalysisArtifactChangedError(
       "inspect_macho",

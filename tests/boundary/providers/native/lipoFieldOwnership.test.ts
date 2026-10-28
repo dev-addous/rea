@@ -246,6 +246,8 @@ it("does not publish file locations beyond the selected binary slice", async () 
   );
   const runner = new NativeFixtureRunner({
     lipo: "input file fixture is not a fat file\nNon-fat file: fixture is architecture: arm64\n",
+    "dyld_info:-exports": "offset symbol\n0x20 _outside\n",
+    nm: "_outside\n",
   });
   const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
     await nativeMachoTargetForFile(path),
@@ -254,6 +256,20 @@ it("does not publish file locations beyond the selected binary slice", async () 
     const result = await client.execute("inspect_macho", {});
     if (!result.ok) throw result.error;
     const inspected = inspectMachoSchema.parse(result.value.result);
+    expect(inspected.exports.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "_outside", address: null }),
+      ]),
+    );
+    expect(inspected.limitations).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("no file-backed image base"),
+      ]),
+    );
+    expect(inspected.segments.items[0]).toMatchObject({
+      file_offset: 0,
+      file_size: 0x4000,
+    });
     expect(inspected.entrypoints.exhaustive).toBe(false);
     expect(inspected.entrypoints.limitations).toContain(
       "An entrypoint lies outside the selected Mach-O slice.",

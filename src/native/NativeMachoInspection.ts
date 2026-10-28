@@ -328,6 +328,7 @@ export const inspectNativeMacho = async (
     context.invocation,
     limitations,
     load,
+    binary.sliceSize,
     parsedImports.items,
     captures[nmIndex]!,
     architectures,
@@ -409,6 +410,7 @@ const normalizeMacho = (
   toInvocation: (capture: NativeCommandCapture) => NativeCommandInvocation,
   additionalLimitations: readonly string[],
   load: BinaryMachoProjection,
+  sliceSize: number,
   parsedImports: ReturnType<typeof parseDyldImports>["items"],
   exportNames: NativeCommandCapture,
   architectures: readonly LipoArchitecture[],
@@ -426,7 +428,11 @@ const normalizeMacho = (
   const imports = missingImportsUuid ? [] : parsedImports.map(withRuntimeName);
   const imageBase =
     load.segments.find(
-      (segment) => segment.file_offset === 0 && (segment.file_size ?? 0) > 0,
+      (segment) =>
+        segment.file_offset === 0 &&
+        segment.file_size !== null &&
+        segment.file_size > 0 &&
+        segment.file_size <= sliceSize,
     )?.vm_address ?? null;
   const nmExports = parseNmExports(exportNames.stdout);
   const dyldExports = missingExportsUuid
@@ -687,8 +693,11 @@ export const architectureLocations = (
  * its CPU-family name. Other variants are distinct subtypes (`arm64e.x1`)
  * that the tools address only by their exact name.
  */
+const architectureBaseName = (architecture: string): string =>
+  architecture.replace(/\.v\d+$/u, "");
+
 const toolArchitectureName = (tool: string, architecture: string): string =>
-  tool === "dyld_info" ? architecture : architecture.replace(/\.v\d+$/u, "");
+  tool === "dyld_info" ? architecture : architectureBaseName(architecture);
 
 const selectedArchitectureArguments = (
   tool: string,
@@ -735,7 +744,7 @@ const selectArchitecture = (
       policy === undefined
         ? selected.name
         : machoToolArchitectureName(policy, selected);
-    const selector = toolArchitectureName("otool", toolName);
+    const selector = architectureBaseName(toolName);
     if (
       available.some((candidate) => {
         if (candidate === selected) return false;
@@ -743,7 +752,7 @@ const selectArchitecture = (
           policy === undefined
             ? candidate.name
             : machoToolArchitectureName(policy, candidate);
-        return toolArchitectureName("otool", candidateName) === selector;
+        return architectureBaseName(candidateName) === selector;
       })
     )
       return { status: "ambiguous", architecture: selector };

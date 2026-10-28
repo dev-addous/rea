@@ -107,6 +107,9 @@ export type MachoRangeReader = (
   size: number,
 ) => Promise<Uint8Array>;
 
+/** Invalid on-disk Mach-O framing or payload at the binary producer boundary. */
+export class MachoBinaryFormatError extends Error {}
+
 /** Producer-derived output capacity exceeded while retaining binary strings. */
 export class MachoCommandNamesLimitError extends Error {
   constructor(
@@ -239,17 +242,17 @@ export const readMachoCommandNames = async (
       size < 0 ||
       offset > imageSize - size
     )
-      throw new TypeError("Mach-O range exceeds selected slice");
+      throw new MachoBinaryFormatError("Mach-O range exceeds selected slice");
     const value = await read(offset, size);
     if (value.byteLength !== size)
-      throw new TypeError("Mach-O range is truncated");
+      throw new MachoBinaryFormatError("Mach-O range is truncated");
     return value;
   };
   const header = await exact(0, Math.min(32, imageSize));
   const parsed = readMachoLoadCommandTableHeader(header, imageSize);
-  if (!parsed.ok) throw new TypeError(parsed.error);
+  if (!parsed.ok) throw new MachoBinaryFormatError(parsed.error);
   if (parsed.value === null)
-    throw new TypeError("Selected slice is not Mach-O");
+    throw new MachoBinaryFormatError("Selected slice is not Mach-O");
   const table = parsed.value;
   const cursor = new MachoLoadCommandCursor(table);
   if (table.commandCount > maximumRecords)
@@ -267,7 +270,7 @@ export const readMachoCommandNames = async (
     const row = cursor.read(
       await exact(table.headerSize + cursor.nextOffset, 8),
     );
-    if (!row.ok) throw new TypeError(row.error);
+    if (!row.ok) throw new MachoBinaryFormatError(row.error);
     const frame = row.value;
     const at = table.headerSize + frame.offset;
     const fixedNames = FIXED_WORD_FIELDS.get(frame.command);
@@ -275,7 +278,9 @@ export const readMachoCommandNames = async (
     if (fixedNames !== undefined) {
       const byteLength = fixedNames.length * 4;
       if (frame.size < 8 + byteLength)
-        throw new TypeError("Mach-O fixed command fields are truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O fixed command fields are truncated",
+        );
       const bytes = await exact(at + 8, byteLength);
       const view = new DataView(
         bytes.buffer,
@@ -299,20 +304,20 @@ export const readMachoCommandNames = async (
     if (segmentWide !== null) {
       const segmentHeaderSize = segmentWide ? 72 : 56;
       if (frame.size < segmentHeaderSize)
-        throw new TypeError("Mach-O segment is truncated");
+        throw new MachoBinaryFormatError("Mach-O segment is truncated");
       const segmentBytes = await exact(at, segmentHeaderSize);
       const segment = readMachoSegmentHeader(
         segmentBytes,
         segmentWide,
         table.littleEndian,
       );
-      if (!segment.ok) throw new TypeError(segment.error.message);
+      if (!segment.ok) throw new MachoBinaryFormatError(segment.error.message);
       const width = segmentWide ? 80 : 68;
       if (
         segment.value.sectionCount >
         Math.floor((frame.size - segmentHeaderSize) / width)
       )
-        throw new TypeError("Mach-O section table is truncated");
+        throw new MachoBinaryFormatError("Mach-O section table is truncated");
       if (segment.value.sectionCount > maximumRecords - records)
         throw new MachoCommandNamesLimitError(maximumRecords, "records");
       records += segment.value.sectionCount;
@@ -342,7 +347,8 @@ export const readMachoCommandNames = async (
           segmentWide,
           table.littleEndian,
         );
-        if (!section.ok) throw new TypeError(section.error.message);
+        if (!section.ok)
+          throw new MachoBinaryFormatError(section.error.message);
         const sectionView = new DataView(
           sectionBytes.buffer,
           sectionBytes.byteOffset,
@@ -388,7 +394,9 @@ export const readMachoCommandNames = async (
     let dylib: MachoCommandNames["commands"][number]["dylib"];
     if (LC_STR_COMMANDS.has(frame.command)) {
       if (frame.size < 12)
-        throw new TypeError("Mach-O command string offset is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O command string offset is truncated",
+        );
       const data = await exact(at + 8, 4);
       const offset = new DataView(
         data.buffer,
@@ -405,14 +413,18 @@ export const readMachoCommandNames = async (
             ? 16
             : 12;
       if (offset < minimum || offset >= frame.size)
-        throw new TypeError("Mach-O command string offset is invalid");
+        throw new MachoBinaryFormatError(
+          "Mach-O command string offset is invalid",
+        );
       const limit = Math.min(frame.size - offset, maximumStringBytes + 1);
       const bytes = await exact(at + offset, limit);
       const end = bytes.indexOf(0);
       if (end < 0) {
         if (limit < frame.size - offset)
           throw new MachoCommandNamesLimitError(maximumStringBytes, "bytes");
-        throw new TypeError("Mach-O command string is unterminated");
+        throw new MachoBinaryFormatError(
+          "Mach-O command string is unterminated",
+        );
       }
       commandString = retain(bytes.slice(0, end));
       commandStringOffset = offset;
@@ -429,7 +441,9 @@ export const readMachoCommandNames = async (
           offset === 28 &&
           marker === 0x1a741800;
         if (useEncoding && frame.size < 28)
-          throw new TypeError("Mach-O dylib use command is truncated");
+          throw new MachoBinaryFormatError(
+            "Mach-O dylib use command is truncated",
+          );
         const flags = useEncoding ? await exact(at + 24, 4) : undefined;
         dylib = {
           nameOffset: offset,
@@ -452,14 +466,16 @@ export const readMachoCommandNames = async (
     let prebound: MachoCommandNames["commands"][number]["prebound"];
     if (frame.command === 0x10) {
       if (frame.size < 20)
-        throw new TypeError("Mach-O prebound dylib command is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O prebound dylib command is truncated",
+        );
       const data = await exact(at + 12, 8);
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
       const moduleCount = view.getUint32(0, table.littleEndian);
       const linkedModulesOffset = view.getUint32(4, table.littleEndian);
       const length = Math.ceil(moduleCount / 8);
       if (linkedModulesOffset < 20 || linkedModulesOffset > frame.size - length)
-        throw new TypeError(
+        throw new MachoBinaryFormatError(
           "Mach-O prebound module bitmap exceeds its command",
         );
       if (length > maximumStringBytes - retainedStringBytes)
@@ -473,7 +489,7 @@ export const readMachoCommandNames = async (
     let fvmlib: MachoCommandNames["commands"][number]["fvmlib"];
     if (frame.command === 0x6 || frame.command === 0x7) {
       if (frame.size < 20)
-        throw new TypeError("Mach-O fvmlib command is truncated");
+        throw new MachoBinaryFormatError("Mach-O fvmlib command is truncated");
       const data = await exact(at + 12, 8);
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
       fvmlib = {
@@ -484,7 +500,7 @@ export const readMachoCommandNames = async (
     let fvmfile: MachoCommandNames["commands"][number]["fvmfile"];
     if (frame.command === 0x9) {
       if (frame.size < 16)
-        throw new TypeError("Mach-O fvmfile command is truncated");
+        throw new MachoBinaryFormatError("Mach-O fvmfile command is truncated");
       const data = await exact(at + 12, 4);
       fvmfile = {
         headerAddress: new DataView(
@@ -497,7 +513,9 @@ export const readMachoCommandNames = async (
     let linkerOptions: Uint8Array[] | undefined;
     if (frame.command === 0x2d) {
       if (frame.size < 12)
-        throw new TypeError("Mach-O linker option count is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O linker option count is truncated",
+        );
       const countBytes = await exact(at + 8, 4);
       const count = new DataView(
         countBytes.buffer,
@@ -507,7 +525,9 @@ export const readMachoCommandNames = async (
       if (count > maximumRecords - records)
         throw new MachoCommandNamesLimitError(maximumRecords, "records");
       if (count > frame.size - 12)
-        throw new TypeError("Mach-O linker option table is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O linker option table is truncated",
+        );
       records += count;
       linkerOptions = [];
       let offset = 12;
@@ -532,12 +552,16 @@ export const readMachoCommandNames = async (
         }
       }
       if (linkerOptions.length !== count)
-        throw new TypeError("Mach-O linker option is unterminated");
+        throw new MachoBinaryFormatError(
+          "Mach-O linker option is unterminated",
+        );
     }
     let legacyBuild: MachoCommandNames["commands"][number]["legacyBuild"];
     if ([0x24, 0x25, 0x2f, 0x30].includes(frame.command)) {
       if (frame.size < 16)
-        throw new TypeError("Mach-O minimum version command is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O minimum version command is truncated",
+        );
       const bytes = await exact(at + 8, 8);
       const view = new DataView(
         bytes.buffer,
@@ -552,7 +576,7 @@ export const readMachoCommandNames = async (
     let note: MachoCommandNames["commands"][number]["note"];
     if (frame.command === 0x31) {
       if (frame.size < 40)
-        throw new TypeError("Mach-O note command is truncated");
+        throw new MachoBinaryFormatError("Mach-O note command is truncated");
       const data = await exact(at + 8, 32);
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
       note = {
@@ -564,19 +588,23 @@ export const readMachoCommandNames = async (
     let fileset: MachoCommandNames["commands"][number]["fileset"];
     if (frame.command === 0x80000035) {
       if (frame.size < 32)
-        throw new TypeError("Mach-O fileset command is truncated");
+        throw new MachoBinaryFormatError("Mach-O fileset command is truncated");
       const data = await exact(at + 8, 24);
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
       const offset = view.getUint32(16, table.littleEndian);
       if (offset < 32 || offset >= frame.size)
-        throw new TypeError("Mach-O fileset entry string offset is invalid");
+        throw new MachoBinaryFormatError(
+          "Mach-O fileset entry string offset is invalid",
+        );
       const length = Math.min(frame.size - offset, maximumStringBytes + 1);
       const value = await exact(at + offset, length);
       const end = value.indexOf(0);
       if (end < 0) {
         if (length < frame.size - offset)
           throw new MachoCommandNamesLimitError(maximumStringBytes, "bytes");
-        throw new TypeError("Mach-O fileset entry string is unterminated");
+        throw new MachoBinaryFormatError(
+          "Mach-O fileset entry string is unterminated",
+        );
       }
       fileset = {
         address: view.getBigUint64(0, table.littleEndian),
@@ -588,13 +616,15 @@ export const readMachoCommandNames = async (
     let uuid: Uint8Array | undefined;
     if (frame.command === 0x1b) {
       if (frame.size < 24)
-        throw new TypeError("Mach-O UUID command is truncated");
+        throw new MachoBinaryFormatError("Mach-O UUID command is truncated");
       uuid = (await exact(at + 8, 16)).slice();
     }
     let entrypoint: MachoCommandNames["commands"][number]["entrypoint"];
     if (frame.command === 0x80000028) {
       if (frame.size < 24)
-        throw new TypeError("Mach-O entrypoint command is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O entrypoint command is truncated",
+        );
       const bytes = await exact(at + 8, 16);
       const view = new DataView(
         bytes.buffer,
@@ -609,7 +639,9 @@ export const readMachoCommandNames = async (
     let build: MachoCommandNames["commands"][number]["build"];
     if (frame.command === 0x32) {
       if (frame.size < 24)
-        throw new TypeError("Mach-O build version command is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O build version command is truncated",
+        );
       const header = await exact(at + 8, 16);
       const view = new DataView(
         header.buffer,
@@ -618,7 +650,9 @@ export const readMachoCommandNames = async (
       );
       const toolCount = view.getUint32(12, table.littleEndian);
       if (toolCount > Math.floor((frame.size - 24) / 8))
-        throw new TypeError("Mach-O build tool table is truncated");
+        throw new MachoBinaryFormatError(
+          "Mach-O build tool table is truncated",
+        );
       if (toolCount > maximumRecords - records)
         throw new MachoCommandNamesLimitError(maximumRecords, "records");
       records += toolCount;
@@ -692,7 +726,7 @@ export const readMachoCommandNames = async (
     });
   }
   const end = cursor.finish();
-  if (!end.ok) throw new TypeError(end.error);
+  if (!end.ok) throw new MachoBinaryFormatError(end.error);
   return {
     sliceSize: imageSize,
     header: {

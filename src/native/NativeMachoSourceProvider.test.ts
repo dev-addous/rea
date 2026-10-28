@@ -273,3 +273,40 @@ it("preserves a returned command failure and late cancellation through close ret
   expect((await client.close()).ok).toBe(true);
   expect(result.error.cleanupIncomplete).toBe(false);
 });
+
+it.each([
+  ["truncated fixed fields", "Mach-O fixed command fields are truncated", 1],
+  ["invalid string offset", "Mach-O command string offset is invalid", 2],
+] as const)(
+  "reports malformed binary %s as output failure with its reason",
+  async (_case, reason, mode) => {
+    const { machoImage, dylibCommand, LC } =
+      await import("../artifacts/apple/MachoImage.fixture.js");
+    const command =
+      mode === 1
+        ? new Uint8Array([2, 0, 0, 0, 8, 0, 0, 0])
+        : dylibCommand(LC.LOAD_DYLIB, "lib");
+    if (mode === 2)
+      new DataView(command.buffer).setUint32(8, command.length, true);
+    const root = await createTestTempDirectory("rea-malformed-macho-");
+    const path = join(root, "fixture.macho");
+    await writeFile(path, machoImage({ commands: [command] }));
+    const client = new NativeMacOSProvider(
+      {},
+      new NativeFixtureRunner({
+        lipo: `Non-fat file: ${path} is architecture: arm64\n`,
+      }),
+      "darwin",
+    ).createClient(await nativeMachoTargetForFile(path));
+    try {
+      const result = await client.execute("inspect_macho", {});
+      if (result.ok) throw new Error("Expected malformed input refusal");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "unreadable_output",
+        details: { operation: "inspect_macho", reason },
+      });
+    } finally {
+      await client.close();
+    }
+  },
+);
