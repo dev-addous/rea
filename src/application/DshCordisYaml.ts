@@ -144,6 +144,50 @@ export class DshCordisYaml {
       if (original.commentBefore !== undefined)
         replacement.commentBefore = original.commentBefore;
     }
+    if (isSeq(original) && isSeq(replacement)) {
+      // Keep an item's comments with the same unique string value when it
+      // moves. Put unmatched or ambiguous annotations on the list itself,
+      // rather than attributing them to a different launcher argument.
+      const sourceCounts = new Map<string, number>();
+      const targetCounts = new Map<string, number>();
+      const targetNodes = new Map<string, Node>();
+      for (const item of original.items) {
+        const value = this.value(item);
+        if (typeof value === "string")
+          sourceCounts.set(value, (sourceCounts.get(value) ?? 0) + 1);
+      }
+      for (const item of replacement.items) {
+        const value = this.value(item);
+        if (typeof value !== "string" || !isNode(item)) continue;
+        targetCounts.set(value, (targetCounts.get(value) ?? 0) + 1);
+        targetNodes.set(value, item);
+      }
+      const orphaned: string[] = [];
+      for (const item of original.items) {
+        if (!isNode(item)) continue;
+        const value = this.value(item);
+        const target =
+          typeof value === "string" &&
+          sourceCounts.get(value) === 1 &&
+          targetCounts.get(value) === 1
+            ? targetNodes.get(value)
+            : undefined;
+        if (target !== undefined) {
+          if (item.commentBefore !== undefined)
+            target.commentBefore = item.commentBefore;
+          if (item.comment !== undefined) target.comment = item.comment;
+          if (item.spaceBefore !== undefined)
+            target.spaceBefore = item.spaceBefore;
+        } else {
+          for (const comment of [item.commentBefore, item.comment])
+            if (typeof comment === "string") orphaned.push(comment);
+        }
+      }
+      if (orphaned.length > 0)
+        replacement.commentBefore = [replacement.commentBefore, ...orphaned]
+          .filter((comment): comment is string => typeof comment === "string")
+          .join("\n");
+    }
     if (pair === undefined) map.set(key, replacement);
     else pair.value = replacement;
   }
