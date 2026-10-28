@@ -21,7 +21,10 @@ import {
   PeCertificateAsn1Failure,
   readAsn1,
 } from "./PeCertificateAsn1.js";
-import { parsePeCertificates } from "./PeCertificateParser.js";
+import {
+  parsePeCertificates,
+  UNSIGNED_ATTRIBUTES_LIMITATION,
+} from "./PeCertificateParser.js";
 
 const defaults = inspectPeCertificatesInputSchema.parse({
   path: "/artifacts/app.exe",
@@ -93,9 +96,7 @@ it("reports unsigned attribute OIDs and incomplete nested coverage", () => {
       status: "partial",
       certificates: 1,
     });
-    expect(report.limitations).toContain(
-      "Signer unsigned attribute contents are not decoded; nested signatures and timestamp token certificates and times may be omitted.",
-    );
+    expect(report.limitations).toContain(UNSIGNED_ATTRIBUTES_LIMITATION);
     const control = parse(peCertificateFixture(plus));
     expect(
       control.entries[0]?.pkcs7?.signers[0]?.unsigned_attribute_oids,
