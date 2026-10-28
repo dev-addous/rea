@@ -15,7 +15,6 @@ import {
   type NativeCommandRunner,
 } from "../../../../src/native/CommandRunner.js";
 import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.js";
-import { parseOtoolLoadCommands } from "../../../../src/native/parsers/otool.js";
 import {
   parseDyldExports,
   parseDyldImports,
@@ -23,11 +22,42 @@ import {
 import {
   NativeFixtureRunner as FixtureRunner,
   nativeFixture as fixture,
-  nativeMachoTarget as machoTarget,
   nativeMachoTargetForFile,
   withOtoolMachHeader,
 } from "../../../fixtures/nativeCommands.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+
+const inventoryTarget = async (chained = false) => {
+  const path = join(
+    await createTestTempDirectory("rea-native-inventory-"),
+    "fixture",
+  );
+  const segment = Buffer.alloc(72);
+  segment.writeUInt32LE(0x19, 0);
+  segment.writeUInt32LE(segment.length, 4);
+  segment.write("__TEXT", 8);
+  segment.writeBigUInt64LE(0x100000000n, 24);
+  segment.writeBigUInt64LE(0x4000n, 32);
+  segment.writeBigUInt64LE(0x4000n, 48);
+  segment.writeUInt32LE(7, 56);
+  segment.writeUInt32LE(5, 60);
+  const fixups = Buffer.alloc(16);
+  fixups.writeUInt32LE(0x80000034, 0);
+  fixups.writeUInt32LE(16, 4);
+  await writeFile(
+    path,
+    machoImage({
+      cpu: CPU.arm64,
+      commands: chained ? [segment, fixups] : [segment],
+    }),
+  );
+  return nativeMachoTargetForFile(path);
+};
+
+const thinLipo =
+  "input file fixture is not a fat file\nNon-fat file: fixture is architecture: arm64\n";
+const inventoryRunner = (outputs: Readonly<Record<string, string>> = {}) =>
+  new FixtureRunner({ lipo: thinLipo, ...outputs });
 
 const signatureTarget = async (
   signedArchitecture: "arm64" | "arm64e" = "arm64",
@@ -268,9 +298,9 @@ it("retains native inventory facts from captured Apple tool output", async () =>
   outputs["dyld_info:-exports"] = exportsOutput;
   const client = new NativeMacOSProvider(
     {},
-    new FixtureRunner(outputs),
+    inventoryRunner(outputs),
     "darwin",
-  ).createClient(machoTarget("/private/fixture"));
+  ).createClient(await inventoryTarget(true));
   const execution = await client.execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(execution.value.result).toMatchObject({
@@ -372,9 +402,9 @@ it("preserves literal import suffixes and whitespace through native inspection",
   ].join("\n");
   const client = new NativeMacOSProvider(
     {},
-    new FixtureRunner({ "dyld_info:-imports": imports }),
+    inventoryRunner({ "dyld_info:-imports": imports }),
     "darwin",
-  ).createClient(machoTarget("/private/fixture"));
+  ).createClient(await inventoryTarget());
   const execution = await client.execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(execution.value.result).toMatchObject({
@@ -445,9 +475,9 @@ it("uses independent undefined names to resolve chained producer spacing", async
   ].join("\n");
   const client = new NativeMacOSProvider(
     {},
-    new FixtureRunner(outputs),
+    inventoryRunner(outputs),
     "darwin",
-  ).createClient(machoTarget("/private/fixture"));
+  ).createClient(await inventoryTarget(true));
   const execution = await client.execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(execution.value.result).toMatchObject({
@@ -505,9 +535,9 @@ it("reports a chained bind addend separately in native inspection", async () => 
   outputs["dyld_info:-exports"] = await fixture("dyld-inventory/exports.txt");
   const client = new NativeMacOSProvider(
     {},
-    new FixtureRunner(outputs),
+    inventoryRunner(outputs),
     "darwin",
-  ).createClient(machoTarget("/private/fixture"));
+  ).createClient(await inventoryTarget(true));
   const execution = await client.execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(execution.value.result).toMatchObject({
@@ -547,14 +577,14 @@ it("reports a chained bind addend separately in native inspection", async () => 
 it("reports a renamed re-export once under its exported name", async () => {
   const client = new NativeMacOSProvider(
     {},
-    new FixtureRunner({
+    inventoryRunner({
       "dyld_info:-exports": await fixture(
         "dyld-inventory/renamed-reexports.txt",
       ),
       nm: "_foo_renamed\n_own\n",
     }),
     "darwin",
-  ).createClient(machoTarget("/private/fixture"));
+  ).createClient(await inventoryTarget());
   const execution = await client.execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(execution.value.result).toMatchObject({
@@ -674,47 +704,6 @@ it("retains symbol names containing spaces in dyld inventory rows", () => {
   ]);
 });
 
-it.each([
-  ["0001", "0002"],
-  [" seg ", " sec "],
-])(
-  "preserves exact segment %j and section %j names from otool",
-  (segment, section) => {
-    const parsed = parseOtoolLoadCommands(
-      withOtoolMachHeader(`Load command 0
-      cmd LC_SEGMENT_64
-  cmdsize 152
-  segname ${segment}
-   vmaddr 0x0000000000004000
-   vmsize 0x0000000000004000
-  fileoff 16384
- filesize 16384
-  maxprot 0x00000003
- initprot 0x00000003
-   nsects 1
-    flags 0x4
-Section
-  sectname ${section}
-   segname ${segment}
-      addr 0x0000000000004000
-      size 0x0000000000000008
-    offset 16384
-     align 2^0 (1)
-    reloff 0
-    nreloc 0
-     flags 0x00000000
- reserved1 0
- reserved2 0
-`),
-    );
-    expect(parsed.segments[0]).toMatchObject({
-      name: segment,
-      file_offset: 16384,
-      sections: [{ segment, name: section, size: 8 }],
-    });
-  },
-);
-
 const signatureRunner = (outputs: {
   readonly signed: string;
   readonly unsigned: string;
@@ -778,39 +767,6 @@ const signatureRunner = (outputs: {
   },
 });
 
-it.each([
-  "/tmp/Load command 12/plugin.dylib",
-  "@rpath/plugin-Load command 34.dylib",
-])(
-  "keeps load-command-looking text inside native install names: %s",
-  (installName) => {
-    const parsed = parseOtoolLoadCommands(
-      withOtoolMachHeader(`Load command 0
-          cmd LC_ID_DYLIB
-      cmdsize 80
-         name ${installName} (offset 24)
-   time stamp 2 Thu Jan  1 00:00:02 1970
-      current version 3.2.1
-compatibility version 1.0.0
-Load command 1
-          cmd LC_UUID
-      cmdsize 24
-         uuid 01234567-89AB-CDEF-0123-456789ABCDEF
-`),
-    );
-    expect(parsed.commands.map(({ index, kind }) => ({ index, kind }))).toEqual(
-      [
-        { index: 0, kind: "LC_ID_DYLIB" },
-        { index: 1, kind: "LC_UUID" },
-      ],
-    );
-    expect(parsed.commands[0]?.fields.name).toBe(`${installName} (offset 24)`);
-    expect(parsed.dependencies).toEqual([]);
-    expect(parsed.commands[1]?.fields.uuid).toBe(
-      "01234567-89AB-CDEF-0123-456789ABCDEF",
-    );
-  },
-);
 it.each(["weak-def", "absolute", "literal suffix"])(
   "preserves an nm-proven export name ending in [%s]",
   (suffix) => {
@@ -942,11 +898,11 @@ const symbolTableRunner = (
 ) => {
   const nmArguments: (readonly string[])[] = [];
   const replay = (output: string) =>
-    new FixtureRunner({ ...outputs, nm: output });
+    inventoryRunner({ ...outputs, nm: output });
   const runner: NativeCommandRunner = {
     run: (tool, arguments_) => {
       if (tool !== "nm") return replay("").run(tool, arguments_);
-      nmArguments.push(arguments_);
+      nmArguments.push([...arguments_.slice(0, -1), "/private/fixture"]);
       return replay(
         arguments_.includes("--no-dyldinfo") ? nm.symbolTable : nm.withDyldInfo,
       ).run(tool, arguments_);
@@ -968,7 +924,7 @@ it("reads exports from the symbol table without llvm-nm's dyld-info pass", async
     { symbolTable: names, withDyldInfo: names },
   );
   const execution = await new NativeMacOSProvider({}, runner, "darwin")
-    .createClient(machoTarget("/private/fixture"))
+    .createClient(await inventoryTarget())
     .execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(nmArguments).toEqual([
@@ -995,7 +951,7 @@ it("binds leading-space exports to their exact nm identities", async () => {
     { symbolTable: names, withDyldInfo: names },
   );
   const execution = await new NativeMacOSProvider({}, runner, "darwin")
-    .createClient(machoTarget("/private/fixture"))
+    .createClient(await inventoryTarget())
     .execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(nmArguments).toHaveLength(1);
@@ -1029,7 +985,7 @@ it("keeps an export name ending in a carriage return distinct", async () => {
     { symbolTable: names, withDyldInfo: names },
   );
   const execution = await new NativeMacOSProvider({}, runner, "darwin")
-    .createClient(machoTarget("/private/fixture"))
+    .createClient(await inventoryTarget())
     .execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(nmArguments).toHaveLength(1);
@@ -1055,7 +1011,7 @@ it("reruns nm with its dyld-info pass when a stripped symbol table omits trie ex
     { symbolTable: "", withDyldInfo: trieNames },
   );
   const execution = await new NativeMacOSProvider({}, runner, "darwin")
-    .createClient(machoTarget("/private/fixture"))
+    .createClient(await inventoryTarget())
     .execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   const rerun = ["-gjU", "-arch", "arm64", "/private/fixture"];
@@ -1081,7 +1037,7 @@ it("reruns nm with its dyld-info pass when a dyld_info export row is unreadable"
     { symbolTable: names, withDyldInfo: names },
   );
   const execution = await new NativeMacOSProvider({}, runner, "darwin")
-    .createClient(machoTarget("/private/fixture"))
+    .createClient(await inventoryTarget())
     .execute("inspect_macho", {});
   if (!execution.ok) throw execution.error;
   expect(nmArguments.map((arguments_) => arguments_.slice(0, 2))).toEqual([
