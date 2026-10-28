@@ -421,18 +421,18 @@ export class PcapProvider {
     const prepared = await preparePcapNativeBound(
       this.environment,
       this.#resources,
-      async (selected) => {
+      async (selected, arguments_) => {
         await assertArtifactCommandPath(selected, operation, { signal });
         const output = await this.run(
           operation,
           "version",
           selected.invocationPath,
-          ["--version"],
+          arguments_,
           { timeoutMs: 20_000, maxOutputBytes: 64 * 1024 },
           signal,
         );
         await assertArtifactCommandPath(selected, operation, { signal });
-        return output.stdout;
+        return output;
       },
       signal,
       operation,

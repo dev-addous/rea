@@ -6,7 +6,10 @@ import {
 import { access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, isAbsolute } from "node:path";
-import { AnalysisError } from "../domain/analysisErrorBase.js";
+import {
+  AnalysisError,
+  type AnalysisCapturedOutput,
+} from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
@@ -28,7 +31,13 @@ const PCAP_CPU_SECONDS = 300;
 export const preparePcapNativeBound = async (
   environment: Readonly<Record<string, string | undefined>>,
   resources: ArtifactAnalysisResources,
-  probe: (selected: ArtifactCommandPath) => Promise<string>,
+  probe: (
+    selected: ArtifactCommandPath,
+    arguments_: string[],
+  ) => Promise<{
+    readonly stdout: string;
+    readonly capturedOutput: AnalysisCapturedOutput;
+  }>,
   signal?: AbortSignal,
   operation:
     | "inspect_pcap_client"
@@ -55,6 +64,7 @@ export const preparePcapNativeBound = async (
   }
   const configured = environment[PRLIMIT_COMMAND_ENV] ?? "/usr/bin/prlimit";
   let probeFailure: AnalysisError | undefined;
+  let capturedOutput: AnalysisCapturedOutput | undefined;
   try {
     if (!isAbsolute(configured))
       throw new Error(`${PRLIMIT_COMMAND_ENV} must be absolute.`);
@@ -62,25 +72,29 @@ export const preparePcapNativeBound = async (
     if (!(await stat(selection.resolvedPath)).isFile())
       throw new Error("The selected limiter is not a regular file.");
     await access(selection.resolvedPath, constants.X_OK);
-    let version: string;
-    try {
-      version = await probe(selection);
-    } catch (cause) {
-      if (
-        (cause instanceof AnalysisCapabilityUnavailableError ||
-          cause instanceof AnalysisOutputError) &&
-        !cause.cleanupIncomplete
-      ) {
-        probeFailure = cause;
-        throw new Error(
-          cause instanceof AnalysisOutputError
-            ? "The selected limiter produced unreadable version output."
-            : "The selected limiter could not be run.",
-          { cause },
-        );
+    const readProbe = async (argument: "--version" | "--help") => {
+      try {
+        const output = await probe(selection, [argument]);
+        capturedOutput = output.capturedOutput;
+        return output.stdout;
+      } catch (cause) {
+        if (
+          (cause instanceof AnalysisCapabilityUnavailableError ||
+            cause instanceof AnalysisOutputError) &&
+          !cause.cleanupIncomplete
+        ) {
+          probeFailure = cause;
+          throw new Error(
+            cause instanceof AnalysisOutputError
+              ? `The selected limiter produced unreadable ${argument === "--version" ? "version" : "help"} output.`
+              : "The selected limiter could not be run.",
+            { cause },
+          );
+        }
+        throw cause;
       }
-      throw cause;
-    }
+    };
+    const version = await readProbe("--version");
     const prefix = `${basename(selection.invocationPath)} from util-linux `;
     if (
       !version.startsWith(prefix) ||
@@ -89,6 +103,11 @@ export const preparePcapNativeBound = async (
       throw new Error(
         "The selected limiter did not report a util-linux prlimit version.",
       );
+    const help = await readProbe("--help");
+    for (const flag of ["--as", "--fsize", "--cpu", "--core"]) {
+      if (!new RegExp(`(?:^|\\s)${flag}(?:[=\\[\\s,]|$)`, "u").test(help))
+        throw new Error(`The selected limiter does not advertise ${flag}.`);
+    }
     const limits = await resources.readLimits({
       address_space_bytes: BOUNDED_PRODUCER_LIMITS.address_space_bytes,
       file_bytes: BOUNDED_PRODUCER_LIMITS.file_bytes,
@@ -114,7 +133,7 @@ export const preparePcapNativeBound = async (
       "Cannot establish the selected Linux resource limiter before processing capture bytes.";
     throw new AnalysisCapabilityUnavailableError("pcap", operation, reason, {
       cause,
-      capturedOutput: probeFailure?.capturedOutput,
+      capturedOutput: probeFailure?.capturedOutput ?? capturedOutput,
       diagnostics: {
         ...probeFailure?.diagnostics,
         configuration_key: PRLIMIT_COMMAND_ENV,

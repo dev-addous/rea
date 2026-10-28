@@ -15,6 +15,12 @@ import {
 } from "../process/LinuxResourceLimits.js";
 import { preparePcapNativeBound } from "./PcapNativeBound.js";
 
+const probeResult = (stdout: string, stderr = "") => ({
+  stdout,
+  capturedOutput: { stdout, stderr, truncated: false },
+});
+const help = " --as[=limit] --fsize[=limit] --cpu[=limit] --core[=limit]";
+
 const resources = {
   readLimits: (limits: LinuxResourceLimits) => Promise.resolve(limits),
 } as ArtifactAnalysisResources;
@@ -41,7 +47,7 @@ const withPlatform = async (
 it("uses the shared 1 GiB ceiling for the Windows job memory limit", async () => {
   await withPlatform("win32", async () => {
     await expect(
-      preparePcapNativeBound({}, resources, async () => ""),
+      preparePcapNativeBound({}, resources, async () => probeResult("")),
     ).resolves.toMatchObject({
       nativeBound: {
         memoryLimitBytes: BOUNDED_PRODUCER_LIMITS.address_space_bytes,
@@ -61,9 +67,11 @@ it("accepts selected limiter symlinks with different and whitespace-bearing base
       const bound = await preparePcapNativeBound(
         { REA_TSHARK_PRLIMIT_COMMAND: selected },
         resources,
-        async (selection) => {
+        async (selection, args) => {
           expect(selection.invocationPath).toBe(selected);
-          return `${name} from util-linux 2.38.1\n`;
+          return probeResult(
+            args[0] === "--help" ? help : `${name} from util-linux 2.38.1\n`,
+          );
         },
       );
       expect(bound.nativeBound.limiter?.command.invocationPath).toBe(selected);
@@ -120,7 +128,10 @@ it("pins capture ceilings through the shared prlimit prefix and keeps 300 CPU se
     const prepared = await preparePcapNativeBound(
       { REA_TSHARK_PRLIMIT_COMMAND: limiter },
       resources,
-      async () => "prlimit from util-linux 2.38.1\n",
+      async (_selection, args) =>
+        probeResult(
+          args[0] === "--help" ? help : "prlimit from util-linux 2.38.1\n",
+        ),
     );
     expect(prepared.nativeBound.limiter?.arguments).toEqual(
       prlimitCeilingArguments(limits),
@@ -143,7 +154,7 @@ it("rejects a directory or a command that does not identify as util-linux prlimi
         preparePcapNativeBound(
           { REA_TSHARK_PRLIMIT_COMMAND: path },
           resources,
-          async () => output,
+          async () => probeResult(output),
         ),
       ).rejects.toMatchObject({
         _tag: "AnalysisCapabilityUnavailableError",
@@ -182,5 +193,49 @@ it("preserves cancellation and selected-command identity failures during the pro
         ),
       ).rejects.toBe(failure);
     }
+  });
+});
+
+it("rejects another util-linux command and retains the rejected help output", async () => {
+  const root = await createTestTempDirectory("rea-prlimit-impostor-");
+  const selected = join(root, "lsblk");
+  await writeFile(selected, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+  const capturedOutput = probeResult(
+    " --output columns",
+    "help diagnostic",
+  ).capturedOutput;
+  await withPlatform("linux", async () => {
+    await expect(
+      preparePcapNativeBound(
+        { REA_TSHARK_PRLIMIT_COMMAND: selected },
+        resources,
+        async (_selection, args) =>
+          args[0] === "--help"
+            ? { stdout: capturedOutput.stdout, capturedOutput }
+            : probeResult("lsblk from util-linux 2.38\n"),
+      ),
+    ).rejects.toMatchObject({
+      _tag: "AnalysisCapabilityUnavailableError",
+      capturedOutput,
+    });
+  });
+});
+
+it("retains rejected version output", async () => {
+  const root = await createTestTempDirectory("rea-prlimit-rejected-version-");
+  const selected = join(root, "prlimit");
+  await writeFile(selected, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+  const output = probeResult("unexpected banner", "diagnostic");
+  await withPlatform("linux", async () => {
+    await expect(
+      preparePcapNativeBound(
+        { REA_TSHARK_PRLIMIT_COMMAND: selected },
+        resources,
+        async () => output,
+      ),
+    ).rejects.toMatchObject({
+      _tag: "AnalysisCapabilityUnavailableError",
+      capturedOutput: output.capturedOutput,
+    });
   });
 });

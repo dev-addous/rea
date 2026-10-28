@@ -515,6 +515,31 @@ it("rejects directory and non-prlimit selections before opening the capture", as
   }
 });
 
+it("rejects a different util-linux command before opening capture bytes", async () => {
+  const root = await createTestTempDirectory("rea-pcap-other-util-linux-");
+  const tools = await writeStubTools(root);
+  const provider = new PcapProvider({
+    environment: {
+      REA_TSHARK_COMMAND: tools.tshark,
+      REA_CAPINFOS_COMMAND: tools.capinfos,
+      REA_TSHARK_PRLIMIT_COMMAND: "/usr/bin/lsblk",
+    },
+  });
+  try {
+    const result = await provider.execute({
+      operation: "inspect_pcap_capture",
+      input: { path: "/not-opened/capture.pcap" },
+    });
+    if (result.ok) throw new Error("expected an unusable limiter");
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisCapabilityUnavailableError",
+      capturedOutput: { stdout: expect.stringContaining("--output") },
+    });
+  } finally {
+    await provider.close();
+  }
+});
+
 it("accepts real prlimit selected through differently named symlinks", async () => {
   const root = await createTestTempDirectory("rea-pcap-prlimit-alias-");
   const tools = await writeStubTools(root);
