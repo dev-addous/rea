@@ -298,3 +298,35 @@ it("keeps excluded JSON observations unknown without hiding inventoried differen
     compare([json("included", false)], [json("invalid", false)]).items[0],
   ).toMatchObject({ status: "unknown", dimensions: ["coverage"] });
 });
+
+it("uses package parsing rather than JSON-module status for package files", () => {
+  const asset = (status: "included" | "invalid" | null) =>
+    createJavaScriptApplicationNode({
+      kind: "artifact",
+      identity: {
+        strategy: "content-digest",
+        stability: "global-exact",
+        sha256: "c".repeat(64),
+      },
+      observations: [
+        {
+          label: "package.json",
+          properties: {
+            path: "package.json",
+            file_kind: "package-json",
+            text_status: "included",
+            json_parse_status: null,
+            package_parse_status: status,
+          },
+          evidence: artifactEvidence("c".repeat(64), "package.json"),
+        },
+      ],
+    });
+  expect(
+    compare([asset("included")], [asset("included")]).items[0],
+  ).toMatchObject({ status: "unchanged" });
+  for (const status of ["invalid", null] as const)
+    expect(
+      compare([asset("included")], [asset(status)]).items[0],
+    ).toMatchObject({ status: "unknown", dimensions: ["coverage"] });
+});

@@ -534,9 +534,11 @@ const hasUnexaminedSourceFile = (node: ApplicationNode): boolean =>
       SOURCE_FILE_KINDS.has(values.file_kind) &&
       (values.text_status === "outside-analysis-scope" ||
         values.text_status === "invalid-utf8" ||
-        ((values.file_kind === "json" || values.file_kind === "package-json") &&
+        (values.file_kind === "json" &&
           "json_parse_status" in values &&
           values.json_parse_status !== "included") ||
+        (values.file_kind === "package-json" &&
+          values.package_parse_status !== "included") ||
         (values.file_kind === "javascript" &&
           (("parse_status" in values && values.parse_status === null) ||
             values.parse_status === "failed" ||
@@ -572,6 +574,7 @@ const comparisonPropertyValues = (
                 "analysis_coverage",
                 "vendor_markers",
                 "json_parse_status",
+                "package_parse_status",
                 "json_top_level_keys",
                 "omitted_json_top_level_keys",
               ].includes(key),
