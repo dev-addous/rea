@@ -163,6 +163,7 @@ it.each([0, 1])(
   async (count) => {
     const { provider, root } = await providerWith({
       tsharkJson: "[]",
+      dnsJson: "[]",
       capinfosText: `File type: pcap\nFile encapsulation: Ethernet\nNumber of packets: ${String(count)}\n`,
     });
     const path = await captureFixture(root);
