@@ -418,9 +418,9 @@ describe("scenario comparison recovery guidance", () => {
       };
       const invocation = await compareCapturesCli(cli, before, after);
       expect(invocation.exitCode, invocation.stderr).toBe(0);
-    const result = z
-      .object({ normalized_result: browserScenarioDiffSchema })
-      .parse(invocation.json).normalized_result;
+      const result = z
+        .object({ normalized_result: browserScenarioDiffSchema })
+        .parse(invocation.json).normalized_result;
       expect(result.overall_status).toBe("unknown");
       const diffs = result.steps.flatMap((step) =>
         step.artifact_diffs.filter((diff) => diff.artifact === "events"),
