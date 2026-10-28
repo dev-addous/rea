@@ -474,6 +474,7 @@ it.skipIf(process.platform === "win32")(
       prepared = await preparePcapNativeBound(
         { REA_TSHARK_PRLIMIT_COMMAND: selected },
         resources,
+        async () => "prlimit from util-linux 2.38.1",
       );
     } finally {
       Object.defineProperty(process, "platform", platform);
