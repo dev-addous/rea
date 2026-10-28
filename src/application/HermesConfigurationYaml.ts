@@ -1,3 +1,4 @@
+import { retainYamlSequenceAnnotations } from "./YamlSequenceAnnotations.js";
 import {
   isAlias,
   isMap,
@@ -377,11 +378,22 @@ const retainHermesSource = (
         );
     }
   } else if (isSeq(previous) && isSeq(next)) {
-    next.items = next.items.map((item, index) =>
-      isNode(item)
-        ? retainHermesSource(previous.items[index], item, retainedSources)
-        : item,
-    );
+    const stringItems = (items: readonly unknown[]) =>
+      items.every((item) => isScalar(item) && typeof item.value === "string");
+    if (stringItems(previous.items) && stringItems(next.items))
+      retainYamlSequenceAnnotations(
+        previous,
+        next,
+        (item) => (isScalar(item) ? item.value : undefined),
+        (source, target) => retainHermesSource(source, target, retainedSources),
+        (source) => !retainedSources.has(source),
+      );
+    else
+      next.items = next.items.map((item, index) =>
+        isNode(item)
+          ? retainHermesSource(previous.items[index], item, retainedSources)
+          : item,
+      );
   }
   return next;
 };

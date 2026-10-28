@@ -548,3 +548,23 @@ describe("Hermes configuration YAML", () => {
     ).toEqual({ date: new Date("2026-10-14") });
   });
 });
+
+it("keeps argument annotations with unique values and retains removed annotations on the list", () => {
+  const source =
+    "mcp_servers:\n  rea:\n    args:\n      - mcp # mcp note\n      - old # removed note\n      - dup # first duplicate\n      - dup # second duplicate\n";
+  const updated = editHermesConfigurationYaml(source, ["mcp_servers", "rea"], {
+    args: ["script", "mcp", "dup"],
+  });
+  expect(parseHermesConfigurationYaml(updated)).toEqual({
+    mcp_servers: { rea: { args: ["script", "mcp", "dup"] } },
+  });
+  expect(updated).toMatch(/- mcp # mcp note/u);
+  expect(updated).not.toMatch(/- script # mcp note/u);
+  for (const comment of [
+    "mcp note",
+    "removed note",
+    "first duplicate",
+    "second duplicate",
+  ])
+    expect(updated.split(comment)).toHaveLength(2);
+});
