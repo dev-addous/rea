@@ -64,9 +64,11 @@ it("keeps observed entry differences when content identity is unknown", async ()
   ] as const) {
     const result = await compare(left, right);
     expect(result.status).toBe("unknown");
-    expect(
-      result.changes.find(({ logical_path }) => logical_path === "entry"),
-    ).toMatchObject({
+    const entry = result.changes.find(
+      ({ logical_path }) => logical_path === "entry",
+    );
+    expect(entry?.dimensions).not.toContain("relations");
+    expect(entry).toMatchObject({
       classification: "unknown",
       dimensions: expect.arrayContaining([
         "executable",

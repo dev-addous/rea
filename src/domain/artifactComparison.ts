@@ -518,9 +518,13 @@ const occurrenceDifferences = (input: {
   ),
   executable:
     input.leftOccurrence?.executable !== input.rightOccurrence?.executable,
+  // A missing content identity prevents inventory from emitting its edges.
+  // An empty projection in that case is unknown, not evidence of no relation.
   relations:
+    input.leftOccurrence?.artifact_id != null &&
+    input.rightOccurrence?.artifact_id != null &&
     JSON.stringify(input.leftRelations) !==
-    JSON.stringify(input.rightRelations),
+      JSON.stringify(input.rightRelations),
   metadata:
     declarationChanged(input.metadata) ||
     input.metadata.pyInstaller === "changed" ||
