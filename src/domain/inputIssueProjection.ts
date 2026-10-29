@@ -50,10 +50,59 @@ export const projectInputIssues = (
 ): readonly AnalysisInputIssue[] =>
   issues.flatMap((issue) => projectIssue(issue, input));
 
+const projectionBudgetExceeded = Symbol(
+  "input issue projection budget exceeded",
+);
+
+/** Bound representation expansion before constructing projected diagnostics. */
+export const projectInputIssuesWithinBudget = (
+  issues: readonly z.core.$ZodIssue[],
+  input: unknown,
+  budgetBytes: number,
+): readonly AnalysisInputIssue[] | undefined => {
+  const budget = { remaining: budgetBytes };
+  try {
+    return issues.flatMap((issue) => projectIssue(issue, input, budget));
+  } catch (error) {
+    if (error === projectionBudgetExceeded) return undefined;
+    throw error;
+  }
+};
+
+const chargeProjection = (
+  issue: z.core.$ZodIssue,
+  budget: { remaining: number },
+): void => {
+  // Six bytes per UTF-16 code unit covers JSON escaping. The fixed allowance
+  // covers the projected object, property names, scalar values and delimiters.
+  const charge = (amount: number) => {
+    budget.remaining -= amount;
+    if (budget.remaining < 0) throw projectionBudgetExceeded;
+  };
+  charge(256);
+  for (const part of issue.path)
+    charge(typeof part === "string" ? 6 * part.length + 16 : 32);
+  charge(6 * issue.message.length);
+  if (issue.code === "invalid_union") {
+    for (const branch of issue.errors) charge(32 + 32 * branch.length);
+    if ("options" in issue && Array.isArray(issue.options))
+      for (const value of issue.options)
+        charge(typeof value === "string" ? 6 * value.length + 32 : 32);
+  }
+  if (issue.code === "invalid_key") charge(32 * issue.issues.length);
+  if (issue.code === "unrecognized_keys")
+    for (const key of issue.keys) charge(256 + 6 * key.length);
+  if (issue.code === "invalid_value")
+    for (const value of issue.values)
+      charge(typeof value === "string" ? 6 * value.length + 32 : 32);
+};
+
 const projectIssue = (
   issue: z.core.$ZodIssue,
   input: unknown,
+  budget?: { remaining: number },
 ): readonly AnalysisInputIssue[] => {
+  if (budget !== undefined) chargeProjection(issue, budget);
   const path = issue.path.flatMap((part) =>
     typeof part === "string" || typeof part === "number" ? [part] : [],
   );
@@ -81,6 +130,7 @@ const projectIssue = (
           projectIssue(
             { ...branchIssue, path: [...issue.path, ...branchIssue.path] },
             input,
+            budget,
           ),
         ),
       ),
@@ -91,6 +141,7 @@ const projectIssue = (
       projectIssue(
         { ...keyIssue, path: [...issue.path, ...keyIssue.path] },
         input,
+        budget,
       ),
     );
   if (issue.code === "unrecognized_keys")

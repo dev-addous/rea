@@ -46,13 +46,14 @@ const expectFittingSdkValidationRecovery = (result: {
       },
       details: {
         operation: "procedure_pseudo_code",
-        issues: [
+        issues: expect.arrayContaining([
           {
-            path: [],
-            reason: "invalid_value",
-            message: expect.stringContaining("required"),
+            path: ["required"],
+            reason: "missing_argument",
+            expected: "string",
           },
-        ],
+          { path: ["unexpected"], reason: "unknown_argument" },
+        ]),
       },
     },
   });

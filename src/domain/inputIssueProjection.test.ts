@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   analysisInputErrorFromIssues,
   projectInputIssues,
+  projectInputIssuesWithinBudget,
 } from "./inputIssueProjection.js";
 import { processScenarioSchema } from "./process/processScenario.js";
 
@@ -115,5 +116,23 @@ describe("input issue projection", () => {
         { path: ["seed", "value"], reason: "invalid_type", expected: "string" },
       ]),
     );
+  });
+
+  it("bounds union expansion before constructing field diagnostics", () => {
+    const schema = z.object({
+      value: z.union([
+        z.object({ a: z.string(), b: z.number() }),
+        z.object({ a: z.number(), c: z.string() }),
+      ]),
+    });
+    const input = { value: { a: false } };
+    const parsed = schema.safeParse(input);
+    if (parsed.success) throw new Error("expected invalid input");
+    expect(
+      projectInputIssuesWithinBudget(parsed.error.issues, input, 32_768),
+    ).toEqual(projectInputIssues(parsed.error.issues, input));
+    expect(
+      projectInputIssuesWithinBudget(parsed.error.issues, input, 300),
+    ).toBeUndefined();
   });
 });
