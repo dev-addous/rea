@@ -220,15 +220,21 @@ cliTest(
         name: "compare_bundles",
         arguments: { left_bundle_path: left, right_bundle_path: right },
       });
-      expect(parseMcpToolError(result).error.details?.issues).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            path: [rejectedField],
-            reason: "invalid_format",
-            message: "must be an absolute local filesystem path",
-          }),
-        ]),
-      );
+      expect(parseMcpToolError(result).error).toMatchObject({
+        code: "invalid_request",
+        category: "invalid_input",
+        details: {
+          operation: "compare_bundles",
+          issues: expect.arrayContaining([
+            {
+              path: [rejectedField],
+              reason: "invalid_format",
+              expected: "regex",
+              message: "must be an absolute local filesystem path",
+            },
+          ]),
+        },
+      });
     }
 
     const absolute = await client.callTool({
