@@ -261,6 +261,7 @@ it("advertises and enforces the same Unicode selector grammar through MCP", asyn
     });
     expect(parseMcpToolError(refused).error).toMatchObject({
       code: "invalid_request",
+      category: "invalid_input",
       details: {
         operation: "inspect_dart_aot",
         issues: [
