@@ -117,7 +117,9 @@ describe("input issue projection", () => {
       ]),
     );
   });
+});
 
+describe("bounded input issue projection", () => {
   it("bounds union expansion before constructing field diagnostics", () => {
     const schema = z.object({
       value: z.union([
@@ -134,5 +136,57 @@ describe("input issue projection", () => {
     expect(
       projectInputIssuesWithinBudget(parsed.error.issues, input, 300),
     ).toBeUndefined();
+  });
+
+  it("checks a nested path before copying its components", () => {
+    const input = { value: {} };
+    const parsed = z
+      .object({
+        value: z.union([
+          z.object({ a: z.string() }),
+          z.object({ b: z.number() }),
+        ]),
+      })
+      .safeParse(input);
+    if (parsed.success) throw new Error("expected invalid input");
+    const issue = parsed.error.issues[0];
+    if (issue?.code !== "invalid_union")
+      throw new Error("expected union issue");
+    const child = issue.errors[0]?.[0];
+    if (child === undefined) throw new Error("expected branch issue");
+    let copied = false;
+    const path = new Proxy(
+      Array.from({ length: 1000 }, () => "field"),
+      {
+        get(target, key, receiver) {
+          if (key === Symbol.iterator) copied = true;
+          return Reflect.get(target, key, receiver);
+        },
+      },
+    );
+    const largePathIssue: z.core.$ZodIssue = {
+      code: "invalid_union",
+      path: issue.path,
+      message: issue.message,
+      errors: [[{ ...child, path }]],
+    };
+    expect(
+      projectInputIssuesWithinBudget([largePathIssue], input, 1024),
+    ).toBeUndefined();
+    expect(copied).toBe(false);
+  });
+
+  it("accounts for the repeated path on every unknown-key issue", () => {
+    const issue: z.core.$ZodIssue = {
+      code: "unrecognized_keys",
+      path: Array.from({ length: 20 }, () => "nested"),
+      keys: Array.from({ length: 10 }, (_, index) => `key_${String(index)}`),
+      message: "Unrecognized keys",
+    };
+    expect(projectInputIssues([issue], {})).toHaveLength(10);
+    expect(projectInputIssuesWithinBudget([issue], {}, 5000)).toBeUndefined();
+    expect(projectInputIssuesWithinBudget([issue], {}, 32_000)).toHaveLength(
+      10,
+    );
   });
 });

@@ -80,8 +80,12 @@ const chargeProjection = (
     if (budget.remaining < 0) throw projectionBudgetExceeded;
   };
   charge(256);
-  for (const part of issue.path)
-    charge(typeof part === "string" ? 6 * part.length + 16 : 32);
+  let pathCost = 0;
+  for (const part of issue.path) {
+    const cost = typeof part === "string" ? 6 * part.length + 16 : 32;
+    pathCost += cost;
+    charge(cost);
+  }
   charge(6 * issue.message.length);
   if (issue.code === "invalid_union") {
     for (const branch of issue.errors) charge(32 + 32 * branch.length);
@@ -91,10 +95,24 @@ const chargeProjection = (
   }
   if (issue.code === "invalid_key") charge(32 * issue.issues.length);
   if (issue.code === "unrecognized_keys")
-    for (const key of issue.keys) charge(256 + 6 * key.length);
+    for (const key of issue.keys) charge(256 + pathCost + 6 * key.length);
   if (issue.code === "invalid_value")
     for (const value of issue.values)
       charge(typeof value === "string" ? 6 * value.length + 32 : 32);
+};
+
+const nestedIssue = (
+  parent: z.core.$ZodIssue,
+  child: z.core.$ZodIssue,
+  budget: { remaining: number } | undefined,
+): z.core.$ZodIssue => {
+  if (budget !== undefined) {
+    // The combined path is allocated before the child is projected. Charge
+    // its references first so a long nested path cannot bypass the allowance.
+    budget.remaining -= 32 + 8 * (parent.path.length + child.path.length);
+    if (budget.remaining < 0) throw projectionBudgetExceeded;
+  }
+  return { ...child, path: [...parent.path, ...child.path] };
 };
 
 const projectIssue = (
@@ -127,22 +145,14 @@ const projectIssue = (
     return uniqueIssues(
       issue.errors.flatMap((branch) =>
         branch.flatMap((branchIssue) =>
-          projectIssue(
-            { ...branchIssue, path: [...issue.path, ...branchIssue.path] },
-            input,
-            budget,
-          ),
+          projectIssue(nestedIssue(issue, branchIssue, budget), input, budget),
         ),
       ),
     );
   }
   if (issue.code === "invalid_key")
     return issue.issues.flatMap((keyIssue) =>
-      projectIssue(
-        { ...keyIssue, path: [...issue.path, ...keyIssue.path] },
-        input,
-        budget,
-      ),
+      projectIssue(nestedIssue(issue, keyIssue, budget), input, budget),
     );
   if (issue.code === "unrecognized_keys")
     return issue.keys.map((key) => ({
