@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nativeAotReasonSchema } from "./nativeAotReason.js";
 
 const address = z.string().regex(/^0x[0-9a-f]+$/u);
 const relatedType = z.strictObject({ address, type: z.string().nullable() });
@@ -51,7 +52,7 @@ export const nativeMetadataRecoverySummarySchema = z.strictObject({
   format: z.literal("dotnet-nativeaot"),
   analysis_mode: z.literal("read-only-derived-overlay").optional(),
   status: z.enum(["complete", "partial", "not_applicable"]),
-  reason: z.string().nullable(),
+  reason: z.union([nativeAotReasonSchema, z.null()]),
   analysis_artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
   header_address: address.nullable(),
   discovery: z.enum(["symbol", "signature-heuristic"]).nullable(),

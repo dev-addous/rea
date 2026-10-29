@@ -59,7 +59,7 @@ describe("NativeAOT recovery evidence", () => {
     const summary = {
       format: "dotnet-nativeaot",
       status: "not_applicable",
-      reason: "No supported row layout found",
+      reason: { code: "no_rtr_directory" },
       analysis_artifact_sha256: "b".repeat(64),
       header_address: null,
       discovery: null,
