@@ -167,11 +167,12 @@ it("requires absolute bundle paths without changing server-cwd semantics", async
         details: {
           operation: "compare_bundles",
           issues: expect.arrayContaining([
-            expect.objectContaining({
+            {
               path: [rejectedField],
               reason: "invalid_format",
+              expected: "regex",
               message: "must be an absolute local filesystem path",
-            }),
+            },
           ]),
         },
       });

@@ -12,8 +12,8 @@ import {
   createEvidenceBundle,
   serializeEvidenceBundle,
 } from "../../../src/domain/evidenceBundle.js";
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
 cliTest("rejects the removed compare-bundles command", async ({ cli }) => {
@@ -226,11 +226,12 @@ cliTest(
         details: {
           operation: "compare_bundles",
           issues: expect.arrayContaining([
-            expect.objectContaining({
+            {
               path: [rejectedField],
               reason: "invalid_format",
+              expected: "regex",
               message: "must be an absolute local filesystem path",
-            }),
+            },
           ]),
         },
       });
