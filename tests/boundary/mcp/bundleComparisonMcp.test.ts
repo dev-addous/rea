@@ -164,16 +164,18 @@ it("requires absolute bundle paths without changing server-cwd semantics", async
       expect(parseMcpToolError(result).error).toMatchObject({
         code: "invalid_request",
         category: "invalid_input",
+        details: {
+          operation: "compare_bundles",
+          issues: expect.arrayContaining([
+            {
+              path: [rejectedField],
+              reason: "invalid_format",
+              expected: "regex",
+              message: "must be an absolute local filesystem path",
+            },
+          ]),
+        },
       });
-      expect(parseMcpToolError(result).error.details?.issues).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            path: [rejectedField],
-            reason: "invalid_format",
-            message: "must be an absolute local filesystem path",
-          }),
-        ]),
-      );
     }
     expect(
       bundleComparisonInputSchema.parse({
