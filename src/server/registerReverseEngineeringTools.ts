@@ -119,9 +119,6 @@ export const registerReverseEngineeringTools = (
               "Rizin may have changed the bound artifact, but the active analysis session could not be retired.",
               {
                 cause,
-                ...(cause.cleanup === undefined
-                  ? {}
-                  : { cleanup: cause.cleanup }),
                 ...(cause.capturedOutput === undefined
                   ? {}
                   : { capturedOutput: cause.capturedOutput }),

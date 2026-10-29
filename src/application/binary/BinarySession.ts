@@ -1048,7 +1048,10 @@ export class BinarySession
       {
         ...(progress === undefined ? {} : { progress }),
         ...(pending.retainDocument ? { retainDocument: true } : {}),
-        ...(onCleanupFailure === undefined ? {} : { onCleanupFailure }),
+        onCleanupFailure: (failure) => {
+          if (failure.cleanupIncomplete) pending.failures.add(failure);
+          onCleanupFailure?.(failure);
+        },
       },
     );
     if (closed.ok) {

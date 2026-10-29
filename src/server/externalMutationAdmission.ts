@@ -69,9 +69,6 @@ export const runWithExternalMutationAdmission = async <Value>(
               ...(evidenceOf === undefined
                 ? {}
                 : { partialObservation: evidenceOf(value.value) }),
-              ...(cause.cleanup === undefined
-                ? {}
-                : { cleanup: cause.cleanup }),
               ...(cause.capturedOutput === undefined
                 ? {}
                 : { capturedOutput: cause.capturedOutput }),

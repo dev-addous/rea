@@ -12,7 +12,14 @@ import { err } from "../../../src/domain/result.js";
 import { AnalysisInputError } from "../../../src/domain/analysisErrorCore.js";
 import { primaryAnalysisError } from "../../../src/domain/analysisErrorBase.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
+import {
+  createAnalysisExecution,
+  type AnalysisClient,
+  type AnalysisProvider,
+} from "../../../src/application/AnalysisProvider.js";
+import { CompositeProvider } from "../../../src/application/binary/CompositeProvider.js";
 import { runWithExternalMutationAdmission } from "../../../src/server/externalMutationAdmission.js";
+import { awaitAcknowledgement } from "../../fixtures/lifecycleAcknowledgement.js";
 import {
   createBinarySessionTargets,
   createDeferred,
@@ -91,7 +98,11 @@ it(
           { mcpReq: { signal: controller.signal } },
         );
         if (mode !== "pre-aborted") {
-          await entered.promise;
+          await awaitAcknowledgement(
+            entered.promise,
+            pending,
+            "session retirement",
+          );
           expect(execute).toHaveBeenCalledTimes(1);
           expect(record).not.toHaveBeenCalled();
           if (mode === "during-retirement") controller.abort(reason);
@@ -175,7 +186,11 @@ it.each(["completed", "failed"] as const)(
         async () => (mode === "completed" ? ok(evidence) : err(commandFailure)),
         (value) => value,
       );
-      await entered.promise;
+      await awaitAcknowledgement(
+        entered.promise,
+        pending,
+        "failed session retirement",
+      );
       controller.abort(reason);
       released.resolve();
       const result = await pending;
@@ -230,7 +245,11 @@ it.each(["started", "failed"] as const)(
         undefined,
         (value) => ({ session_id: value.session_id }),
       );
-      await entered.promise;
+      await awaitAcknowledgement(
+        entered.promise,
+        pending,
+        "session retirement",
+      );
       controller.abort(reason);
       released.resolve();
       const result = await pending;
@@ -251,3 +270,122 @@ it.each(["started", "failed"] as const)(
     }
   },
 );
+
+it("follows the original owner of a completed mutation's retirement failure", async () => {
+  const [target] = await createBinarySessionTargets();
+  let closed = false;
+  const cleanup = new ProviderCleanupError(
+    "ida",
+    ["workspace"],
+    {},
+  ).bindCleanupResourceOwner({
+    get cleanupResources() {
+      return closed ? [] : ["workspace"];
+    },
+  });
+  const session = createTestBinarySession(
+    () =>
+      ({
+        execute: async () => ok({ operation: "health", value: null }),
+        close: async () => {
+          if (!closed) return err(cleanup);
+          cleanup.resolveCleanup();
+          return ok(null);
+        },
+      }) as never,
+  );
+  expect((await session.open(target)).ok).toBe(true);
+  try {
+    const result = await runWithExternalMutationAdmission(
+      session,
+      "gdb_console",
+      undefined,
+      async () => ok(null),
+      undefined,
+    );
+    if (result.ok) throw new Error("Expected cleanup failure");
+    expect(result.error.cleanupIncomplete).toBe(true);
+    closed = true;
+    expect((await session.close()).ok).toBe(true);
+    expect(result.error.cleanupIncomplete).toBe(false);
+  } finally {
+    closed = true;
+    await session.close();
+  }
+});
+
+it("resolves nested unowned child cleanup errors after the client confirms retry", async () => {
+  const [target] = await createBinarySessionTargets();
+  const first = new ProviderCleanupError("hopper", ["hopper"], {});
+  const second = new ProviderCleanupError("auxiliary", ["file"], {});
+  const child = (
+    id: string,
+    operation: "address_name" | "procedure_info",
+    failure: ProviderCleanupError,
+  ): AnalysisProvider => {
+    const identity = { id, name: id, version: "1" };
+    let attempts = 0;
+    return {
+      identity: () => identity,
+      capabilities: () => [
+        {
+          provider: identity,
+          operation,
+          available: true,
+          reason: null,
+          effects: {
+            mutatesArtifact: false,
+            launchesProcess: false,
+            mayShowUi: false,
+            mayAccessNetwork: false,
+            mayWriteFilesystem: false,
+            changesPermissions: false,
+            requiresRoot: false,
+          },
+          limitations: [],
+        },
+      ],
+      createClient: (): AnalysisClient => ({
+        execute: async (name) => ok(createAnalysisExecution(name, identity)),
+        close: async () => (++attempts === 1 ? err(failure) : ok(null)),
+      }),
+    };
+  };
+  const composite = new CompositeProvider([
+    child("hopper", "address_name", first),
+    child("auxiliary", "procedure_info", second),
+  ]);
+  const session = createTestBinarySession((target) => {
+    const client = composite.createClient(target);
+    let initialized = false;
+    return {
+      ...client,
+      execute: async (operation, parameters, options) => {
+        if (!initialized && operation === "health") {
+          initialized = true;
+          await client.execute("address_name", {});
+          await client.execute("procedure_info", {});
+        }
+        return client.execute(operation, parameters, options);
+      },
+    };
+  });
+  expect((await session.open(target)).ok).toBe(true);
+  try {
+    const result = await runWithExternalMutationAdmission(
+      session,
+      "gdb_console",
+      undefined,
+      async () => ok(null),
+      undefined,
+    );
+    if (result.ok) throw new Error("Expected cleanup failure");
+    expect(result.error.cleanupIncomplete).toBe(true);
+    expect((await session.close()).ok).toBe(true);
+    expect(first.cleanupIncomplete).toBe(false);
+    expect(second.cleanupIncomplete).toBe(false);
+    expect(result.error.cleanupIncomplete).toBe(false);
+  } finally {
+    await session.close();
+  }
+});
