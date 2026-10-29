@@ -3182,7 +3182,7 @@ export class AdbProvider {
           {
             limitations: [
               "The capture is one frame at read time; no recording or interaction occurred",
-              "PNG signature and IHDR are validated; image contents are not decoded or validated",
+              "PNG signature, IHDR framing, checksum, and dimensions are validated; encoding and image contents are not validated",
               ...(usedExclusiveFallback
                 ? [
                     "The exclusive-create fallback makes the output path visible while its bytes are being written",
