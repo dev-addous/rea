@@ -52,7 +52,11 @@ observations may omit the coverage field; treat omission as `unknown` rather
 than inferring completeness from the array.
 
 Passive DOM comparison checks complete node inventories and complete frame
-parent/child structure independently. Frame IDs and sibling enumeration order
+parent/child structure independently. Node value lengths are comparable only
+when both nonempty snapshots declare the same `node_value_length_unit`.
+Missing or different units leave length comparison unknown; independent node
+or frame structural differences can still prove change. Empty inventories have
+no value lengths to compare. Frame IDs and sibling enumeration order
 are capture-local and do not establish a change; duplicate IDs, missing parents,
 and cyclic ancestry remain unknown. A complete frame difference can still prove
 change when DOM nodes are incomplete, and vice versa. Partial DOM or metadata

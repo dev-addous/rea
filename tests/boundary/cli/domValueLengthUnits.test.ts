@@ -9,6 +9,8 @@ import { electronPageInspectionSchema } from "../../../src/domain/javascript/ele
 import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
+import { passiveNetworkCapture } from "../../fixtures/passiveNetworkCapture.js";
+import { webCaptureDiffSchema } from "../../../src/domain/webCaptureDiffSchemas.js";
 
 for (const electron of [false, true])
   cliTest(
@@ -131,3 +133,94 @@ for (const electron of [false, true])
       );
     },
   );
+
+cliTest(
+  "compares only commensurable DOM lengths while retaining structural changes through CLI and MCP",
+  async ({ cli }) => {
+    const call = await cli.sharedMcpCall!();
+    for (const [beforeUnit, afterUnit, length, variation, status] of [
+      ["utf16-code-units", "utf16-code-units", 5, "none", "unchanged"],
+      ["utf8-bytes", "utf8-bytes", 10, "none", "changed"],
+      [undefined, undefined, 5, "none", "unknown"],
+      [undefined, "utf16-code-units", 10, "none", "unknown"],
+      ["utf16-code-units", "utf8-bytes", 5, "none", "unknown"],
+      ["utf16-code-units", "utf8-bytes", 10, "none", "unknown"],
+      [undefined, undefined, 5, "node", "changed"],
+      ["utf16-code-units", "utf8-bytes", 10, "frame", "changed"],
+      [undefined, undefined, 5, "empty", "unchanged"],
+    ] as const) {
+      const before = passiveNetworkCapture();
+      before.dom = {
+        total_nodes: 2,
+        ...(beforeUnit === undefined
+          ? {}
+          : { node_value_length_unit: beforeUnit }),
+        nodes: [
+          {
+            index: 0,
+            parent_index: -1,
+            node_type: 9,
+            node_name: "#document",
+            node_value_length: 0,
+            attribute_names: [],
+          },
+          {
+            index: 1,
+            parent_index: 0,
+            node_type: 3,
+            node_name: "#text",
+            node_value_length: 5,
+            attribute_names: [],
+          },
+        ],
+      };
+      const after = structuredClone(before);
+      if (afterUnit === undefined) delete after.dom.node_value_length_unit;
+      else after.dom.node_value_length_unit = afterUnit;
+      after.dom.nodes[1]!.node_value_length = length;
+      if (variation === "node") {
+        after.dom.nodes[1]!.node_type = 8;
+        after.dom.nodes[1]!.node_name = "#comment";
+      }
+      if (variation === "frame")
+        after.frames.push({
+          frame_id: "frame",
+          parent_frame_id: null,
+          url: "https://app.example.test/other",
+          origin: "https://app.example.test",
+        });
+      if (variation === "empty") {
+        before.dom = { total_nodes: 0, nodes: [] };
+        after.dom = { total_nodes: 0, nodes: [] };
+      }
+      const result = await cli.sharedCliRun!({
+        arguments: [
+          "compare-web-captures",
+          JSON.stringify({ inspection: before }),
+          JSON.stringify({ inspection: after }),
+          "--json",
+        ],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const mcp = await call("compare_web_captures", {
+        before: { inspection: after },
+        after: { inspection: before },
+      });
+      expect(mcp.isError).not.toBe(true);
+      const label = JSON.stringify({
+        beforeUnit,
+        afterUnit,
+        length,
+        variation,
+      });
+      for (const output of [result.json, mcp.structuredContent]) {
+        const diff = webCaptureDiffSchema.parse(
+          parseEvidence(output).normalized_result,
+        );
+        expect(diff.dimensions.dom_structure.status, label).toBe(status);
+        if (status === "unknown")
+          expect(diff.dimensions.dom_structure.reason).toContain("unit");
+      }
+    }
+  },
+);
