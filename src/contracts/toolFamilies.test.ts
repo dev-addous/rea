@@ -3,9 +3,10 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   TOOL_FAMILY_DEFINITIONS,
   contractsForToolFamilies,
+  registerToolFamilies,
   toolFamilyId,
 } from "./toolFamilies.js";
-import { TOOL_FAMILY_IDS } from "./toolFamilyIds.js";
+import { TOOL_FAMILY_IDS, type ToolFamilyId } from "./toolFamilyIds.js";
 import { TOOL_CONTRACTS, toolContract } from "./toolContracts.js";
 import type {
   officialOutputSchemas,
@@ -41,6 +42,20 @@ describe("tool families", () => {
     expect(TOOL_FAMILY_DEFINITIONS.map(({ id }) => id)).toEqual([
       ...TOOL_FAMILY_IDS,
     ]);
+  });
+
+  it("runs registrars in published id order", () => {
+    const seen: string[] = [];
+    const registrars = Object.fromEntries(
+      TOOL_FAMILY_IDS.map((id) => [
+        id,
+        (): void => {
+          seen.push(id);
+        },
+      ]),
+    ) as unknown as { readonly [Id in ToolFamilyId]: () => void };
+    registerToolFamilies(registrars);
+    expect(seen).toEqual([...TOOL_FAMILY_IDS]);
   });
 
   it("covers every contract exactly once", () => {

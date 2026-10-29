@@ -46,6 +46,16 @@ import { FRIDA_TOOL_CONTRACTS } from "./fridaToolContracts.js";
 import { TOOL_CONTRACTS } from "./toolContracts.js";
 import { TOOL_FAMILY_IDS, type ToolFamilyId } from "./toolFamilyIds.js";
 
+/**
+ * Invoke one registrar per published family, in {@link TOOL_FAMILY_IDS} order.
+ * Both CLI and MCP pass a complete map; a new id fails those call sites.
+ */
+export const registerToolFamilies = (registrars: {
+  readonly [Id in ToolFamilyId]: () => void;
+}): void => {
+  for (const id of TOOL_FAMILY_IDS) registrars[id]();
+};
+
 /** One selectable family: a stable selection id and its complete contract set. */
 export interface ToolFamilyDefinition {
   readonly id: ToolFamilyId;
