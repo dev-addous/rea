@@ -72,7 +72,7 @@ msgstr "Por N0zoM1z0 * 10 octubre 2026"
 #: website/public/examples/dino-lab/index.html:484
 #: website/public/faq/index.html:582
 #: website/public/first-investigation/index.html:543
-#: website/public/get-started/index.html:1860
+#: website/public/get-started/index.html:1859
 #: website/public/guides/browser/index.html:516
 #: website/public/guides/index.html:310
 #: website/public/guides/javascript/index.html:520
@@ -3323,21 +3323,21 @@ msgstr "Terminal"
 #: website/public/get-started/index.html:847
 #: website/public/get-started/index.html:895
 #: website/public/get-started/index.html:928
-#: website/public/get-started/index.html:1083
-#: website/public/get-started/index.html:1145
-#: website/public/get-started/index.html:1168
-#: website/public/get-started/index.html:1192
-#: website/public/get-started/index.html:1240
-#: website/public/get-started/index.html:1315
-#: website/public/get-started/index.html:1341
-#: website/public/get-started/index.html:1358
-#: website/public/get-started/index.html:1601
-#: website/public/get-started/index.html:1660
-#: website/public/get-started/index.html:1679
-#: website/public/get-started/index.html:1701
-#: website/public/get-started/index.html:1744
-#: website/public/get-started/index.html:1774
-#: website/public/get-started/index.html:1795
+#: website/public/get-started/index.html:1082
+#: website/public/get-started/index.html:1144
+#: website/public/get-started/index.html:1167
+#: website/public/get-started/index.html:1191
+#: website/public/get-started/index.html:1239
+#: website/public/get-started/index.html:1314
+#: website/public/get-started/index.html:1340
+#: website/public/get-started/index.html:1357
+#: website/public/get-started/index.html:1600
+#: website/public/get-started/index.html:1659
+#: website/public/get-started/index.html:1678
+#: website/public/get-started/index.html:1700
+#: website/public/get-started/index.html:1743
+#: website/public/get-started/index.html:1773
+#: website/public/get-started/index.html:1794
 msgctxt "page:get-started/index.html"
 msgid "Copy"
 msgstr "Copiar"
@@ -3569,14 +3569,14 @@ msgstr ""
 " aparecerá su ruta."
 
 #: website/public/get-started/index.html:1006
-#: website/public/get-started/index.html:1767
+#: website/public/get-started/index.html:1766
 msgctxt "page:get-started/index.html"
 msgid "In a terminal, put quotes around a path that contains spaces."
 msgstr ""
 "En una terminal, coloque comillas alrededor de una ruta que contenga "
 "espacios."
 
-#: website/public/get-started/index.html:1594
+#: website/public/get-started/index.html:1593
 msgctxt "page:get-started/index.html"
 msgid ""
 "Analyze a JavaScript or Electron application folder or ASAR archive without "
@@ -3585,14 +3585,14 @@ msgstr ""
 "Analice una carpeta de aplicación JavaScript o Electron o un archivo ASAR "
 "sin ejecutar la aplicación:"
 
-#: website/public/get-started/index.html:1600
+#: website/public/get-started/index.html:1599
 msgctxt "page:get-started/index.html"
 msgid "Static application analysis"
 msgstr "Análisis estático de aplicaciones"
 
 #. {ph0}: <code>.asar</code>
 #. {ph1}: <code>"D:/apps/example"</code>
-#: website/public/get-started/index.html:1612
+#: website/public/get-started/index.html:1611
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3602,13 +3602,13 @@ msgstr ""
 "Reemplace la ruta con el directorio de la aplicación extraída o {ph0} "
 "archivo. En Windows, una ruta como {ph1} trabaja aquí."
 
-#: website/public/get-started/index.html:1618
+#: website/public/get-started/index.html:1617
 msgctxt "page:get-started/index.html"
 msgid "Where do I find an app's .asar file?"
 msgstr "¿Dónde encuentro el archivo .asar de una aplicación?"
 
 #. {ph0}: <code>resources</code>
-#: website/public/get-started/index.html:1619
+#: website/public/get-started/index.html:1618
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "Electron apps usually keep it in a {ph0} folder:"
@@ -3620,7 +3620,7 @@ msgstr ""
 #. {ph2}: <code
 #. >C:\Users\&lt;you&gt;\AppData\Local\Programs\&lt;App&gt;\resources\app.asar</code
 #. >
-#: website/public/get-started/index.html:1624
+#: website/public/get-started/index.html:1623
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows:{ph1} {ph2}"
@@ -3632,7 +3632,7 @@ msgstr "{ph0} Windows :{ph1} {ph2}"
 #. >/Applications/&lt;App&gt;.app/Contents/Resources/app.asar</code >
 #. {ph3}: <em>
 #. {ph4}: </em>
-#: website/public/get-started/index.html:1630
+#: website/public/get-started/index.html:1629
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3645,14 +3645,14 @@ msgstr ""
 #. {ph0}: <strong>
 #. {ph1}: </strong>
 #. {ph2}: <code>/opt/&lt;App&gt;/resources/app.asar</code>
-#: website/public/get-started/index.html:1638
+#: website/public/get-started/index.html:1637
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Linux:{ph1} often {ph2}"
 msgstr "{ph0} Linux :{ph1} a menudo {ph2}"
 
 #. {ph0}: <code>app.asar</code>
-#: website/public/get-started/index.html:1643
+#: website/public/get-started/index.html:1642
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "Some apps install elsewhere. Search the app's folder for {ph0}."
@@ -3660,7 +3660,7 @@ msgstr ""
 "Algunas aplicaciones se instalan en otro lugar. Busque en la carpeta de la "
 "aplicación {ph0}."
 
-#: website/public/get-started/index.html:1648
+#: website/public/get-started/index.html:1647
 msgctxt "page:get-started/index.html"
 msgid ""
 "The result identifies the app, shows connections between modules and gives "
@@ -3672,36 +3672,36 @@ msgstr ""
 "se pueden resolver están marcadas en el resultado."
 
 #. {ph0}: <code>rea</code>
-#: website/public/get-started/index.html:1653
+#: website/public/get-started/index.html:1652
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "If you'd like a permanent {ph0} command in your shell:"
 msgstr "Si desea un permanente {ph0} comando en tu shell:"
 
-#: website/public/get-started/index.html:1659
+#: website/public/get-started/index.html:1658
 msgctxt "page:get-started/index.html"
 msgid "Install the CLI"
 msgstr "Instale el CLI"
 
 #. {ph0}: <a href="../guides/javascript/" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1671
+#: website/public/get-started/index.html:1670
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Continue with the JavaScript application guide{ph1}"
 msgstr "{ph0}Continúe con la guía de aplicación del JavaScript{ph1}"
 
-#: website/public/get-started/index.html:1188
+#: website/public/get-started/index.html:1187
 msgctxt "page:get-started/index.html"
 msgid "Connect your Ghidra installation"
 msgstr "Conecte su instalación de Ghidra"
 
-#: website/public/get-started/index.html:1158
+#: website/public/get-started/index.html:1157
 msgctxt "page:get-started/index.html"
 msgid "Connect Ghidra on Windows"
 msgstr "Conecte Ghidra en Windows"
 
-#: website/public/get-started/index.html:1159
+#: website/public/get-started/index.html:1158
 msgctxt "page:get-started/index.html"
 msgid ""
 "Windows x64 has experimental, read-only support for native x86 and x64 PE "
@@ -3712,7 +3712,7 @@ msgstr ""
 "DLL nativas x86 y x64 PE en unidades NTFS locales fijas. Usa una instalación"
 " existente de Ghidra 12.1.x y un JDK de 64 bits, versión 21 o posterior:"
 
-#: website/public/get-started/index.html:1182
+#: website/public/get-started/index.html:1181
 msgctxt "page:get-started/index.html"
 msgid ""
 "Replace the two paths with your installations, then review setup's plan."
@@ -3730,18 +3730,18 @@ msgstr ""
 "anterior; detecta una instalación existente u ofrece un plan de instalación "
 "para su aprobación."
 
-#: website/public/get-started/index.html:1725
+#: website/public/get-started/index.html:1724
 msgctxt "page:get-started/index.html"
 msgid "Getting help"
 msgstr "Cómo obtener ayuda"
 
-#: website/public/get-started/index.html:1727
+#: website/public/get-started/index.html:1726
 msgctxt "page:get-started/index.html"
 msgid "If your agent doesn't see REA"
 msgstr "Si su agente no ve REA"
 
 #. {ph0}: <code>doctor</code>
-#: website/public/get-started/index.html:1728
+#: website/public/get-started/index.html:1727
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3751,22 +3751,22 @@ msgstr ""
 "Reinicie o vuelva a conectar el cliente después de la configuración. "
 "Compruebe su conexión REA con {ph0}; para Codex :"
 
-#: website/public/get-started/index.html:1739
+#: website/public/get-started/index.html:1738
 msgctxt "page:get-started/index.html"
 msgid "If a provider needs attention"
 msgstr "Si un proveedor necesita atención"
 
-#: website/public/get-started/index.html:1740
+#: website/public/get-started/index.html:1739
 msgctxt "page:get-started/index.html"
 msgid "Check the provider you're using. For Ghidra:"
 msgstr "Verifique el proveedor que está usando. Para Ghidra :"
 
-#: website/public/get-started/index.html:1743
+#: website/public/get-started/index.html:1742
 msgctxt "page:get-started/index.html"
 msgid "Check one provider"
 msgstr "Consulte a un proveedor"
 
-#: website/public/get-started/index.html:1755
+#: website/public/get-started/index.html:1754
 msgctxt "page:get-started/index.html"
 msgid "The report gives the failed check and a suggested next step."
 msgstr ""
@@ -3776,7 +3776,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span>
 #. {ph3}: </span>
-#: website/public/get-started/index.html:1820
+#: website/public/get-started/index.html:1819
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3789,7 +3789,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span >
 #. {ph3}: </span >
-#: website/public/get-started/index.html:1824
+#: website/public/get-started/index.html:1823
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3803,7 +3803,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span>
 #. {ph3}: </span>
-#: website/public/get-started/index.html:1831
+#: website/public/get-started/index.html:1830
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3817,7 +3817,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span>
 #. {ph3}: </span>
-#: website/public/get-started/index.html:1835
+#: website/public/get-started/index.html:1834
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3883,22 +3883,22 @@ msgctxt "page:get-started/index.html"
 msgid "Copy REA installation prompt"
 msgstr "Copie el mensaje de instalación de REA"
 
-#: website/public/get-started/index.html:1601
+#: website/public/get-started/index.html:1600
 msgctxt "page:get-started/index.html"
 msgid "Copy JavaScript analysis command"
 msgstr "Copie el comando de análisis JavaScript"
 
-#: website/public/get-started/index.html:1660
+#: website/public/get-started/index.html:1659
 msgctxt "page:get-started/index.html"
 msgid "Copy CLI installation command"
 msgstr "Copie el comando de instalación de CLI"
 
-#: website/public/get-started/index.html:1744
+#: website/public/get-started/index.html:1743
 msgctxt "page:get-started/index.html"
 msgid "Copy provider diagnosis command"
 msgstr "Copie el comando de diagnóstico del proveedor"
 
-#: website/public/get-started/index.html:1860
+#: website/public/get-started/index.html:1859
 msgctxt "page:get-started/index.html"
 msgid "Back to top"
 msgstr "Volver arriba"
@@ -10931,7 +10931,7 @@ msgstr "Guías"
 #: website/public/examples/dino-lab/index.html:476
 #: website/public/faq/index.html:574
 #: website/public/first-investigation/index.html:535
-#: website/public/get-started/index.html:1852
+#: website/public/get-started/index.html:1851
 #: website/public/guides/browser/index.html:508
 #: website/public/guides/index.html:302
 #: website/public/guides/javascript/index.html:512
@@ -10954,7 +10954,7 @@ msgstr "Código fuente"
 #: website/public/examples/dino-lab/index.html:477
 #: website/public/faq/index.html:575
 #: website/public/first-investigation/index.html:536
-#: website/public/get-started/index.html:1853
+#: website/public/get-started/index.html:1852
 #: website/public/guides/browser/index.html:509
 #: website/public/guides/index.html:303
 #: website/public/guides/javascript/index.html:513
@@ -10977,7 +10977,7 @@ msgstr "Licencia MIT"
 #: website/public/examples/dino-lab/index.html:478
 #: website/public/faq/index.html:576
 #: website/public/first-investigation/index.html:537
-#: website/public/get-started/index.html:1854
+#: website/public/get-started/index.html:1853
 #: website/public/guides/browser/index.html:510
 #: website/public/guides/index.html:304
 #: website/public/guides/javascript/index.html:514
@@ -11000,7 +11000,7 @@ msgstr "Únete a la comunidad"
 #: website/public/examples/dino-lab/index.html:479
 #: website/public/faq/index.html:577
 #: website/public/first-investigation/index.html:538
-#: website/public/get-started/index.html:1855
+#: website/public/get-started/index.html:1854
 #: website/public/guides/browser/index.html:511
 #: website/public/guides/index.html:305
 #: website/public/guides/javascript/index.html:515
@@ -13914,7 +13914,7 @@ msgstr ""
 "cuando Hopper se abra por primera vez. En Linux, la configuración prepara la"
 " demostración compatible y su pantalla privada."
 
-#: website/public/get-started/index.html:1094
+#: website/public/get-started/index.html:1093
 msgctxt "page:get-started/index.html"
 msgid ""
 "If macOS asks for Automation permission, allow the app that starts REA in "
@@ -13928,18 +13928,18 @@ msgstr ""
 #. href="https://github.com/morluto/rea/blob/main/docs/installation.md#hopper"
 #. >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1099
+#: website/public/get-started/index.html:1098
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Hopper setup and troubleshooting{ph1}"
 msgstr "{ph0}Configuración de Hopper y solución de problemas{ph1}"
 
-#: website/public/get-started/index.html:1107
+#: website/public/get-started/index.html:1106
 msgctxt "page:get-started/index.html"
 msgid "Ghidra · install the free analysis tool and Java"
 msgstr "Ghidra · instala la herramienta de análisis gratuita y Java"
 
-#: website/public/get-started/index.html:1111
+#: website/public/get-started/index.html:1110
 msgctxt "page:get-started/index.html"
 msgid ""
 "Install a 64-bit JDK 21 or newer, including the Java compiler. Choose the "
@@ -13950,7 +13950,7 @@ msgstr ""
 "ordenador."
 
 #. {ph0}: <code>ghidra_…_PUBLIC_….zip</code>
-#: website/public/get-started/index.html:1116
+#: website/public/get-started/index.html:1115
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -13963,7 +13963,7 @@ msgstr ""
 #. {ph0}: <code>ghidraRun</code>
 #. {ph1}: <code>ghidraRun.bat</code>
 #. {ph2}: <code>GHIDRA_INSTALL_DIR</code>
-#: website/public/get-started/index.html:1121
+#: website/public/get-started/index.html:1120
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -13979,7 +13979,7 @@ msgstr ""
 #. href="https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.4_build"
 #. >
 #. {ph3}: </a >
-#: website/public/get-started/index.html:1127
+#: website/public/get-started/index.html:1126
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Download a JDK{ph1} · {ph2}Download Ghidra 12.1.4{ph3}"
@@ -13987,7 +13987,7 @@ msgstr "{ph0}Descargar un JDK{ph1} · {ph2}Descargar Ghidra 12.1.4{ph3}"
 
 #. {ph0}: <code>java.home</code>
 #. {ph1}: <code>JAVA_HOME</code>
-#: website/public/get-started/index.html:1137
+#: website/public/get-started/index.html:1136
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -13997,7 +13997,7 @@ msgstr ""
 "Comprueba Java. El primer comando muestra {ph0}; usa esa carpeta para {ph1}."
 " El segundo confirma que el compilador está instalado:"
 
-#: website/public/get-started/index.html:1253
+#: website/public/get-started/index.html:1252
 msgctxt "page:get-started/index.html"
 msgid ""
 "Keep these commands in the same terminal session. Rerun setup after setting "
@@ -14015,7 +14015,7 @@ msgstr ""
 #. {ph2}: <a href="https://github.com/morluto/rea/blob/main/docs/windows-
 #. ghidra-p0.md" >
 #. {ph3}: </a >
-#: website/public/get-started/index.html:1258
+#: website/public/get-started/index.html:1257
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14025,12 +14025,12 @@ msgstr ""
 "{ph0}Configuración de Ghidra y requisitos de arquitectura{ph1} · {ph2}Guía "
 "de Ghidra en Windows{ph3}"
 
-#: website/public/get-started/index.html:1271
+#: website/public/get-started/index.html:1270
 msgctxt "page:get-started/index.html"
 msgid "IDA · connect an existing installation"
 msgstr "IDA · conecta una instalación existente"
 
-#: website/public/get-started/index.html:1272
+#: website/public/get-started/index.html:1271
 msgctxt "page:get-started/index.html"
 msgid ""
 "Use the IDA provider guide to prepare an upstream MCP registration. Choose "
@@ -14042,7 +14042,7 @@ msgstr ""
 "original abierto o un supervisor sin interfaz gráfica que abra una base de "
 "datos privada."
 
-#: website/public/get-started/index.html:1277
+#: website/public/get-started/index.html:1276
 msgctxt "page:get-started/index.html"
 msgid ""
 "Verified profiles include the Windows legacy GUI and headless supervisor, "
@@ -14055,7 +14055,7 @@ msgstr ""
 "opcional de la interfaz gráfica tiene sus propios requisitos de versión y "
 "plataforma."
 
-#: website/public/get-started/index.html:1372
+#: website/public/get-started/index.html:1371
 msgctxt "page:get-started/index.html"
 msgid ""
 "Use the JSON registration file you prepared with the provider guide, then "
@@ -14067,14 +14067,14 @@ msgstr ""
 #. {ph0}: <a href="https://github.com/morluto/rea/blob/main/docs/ida-
 #. provider.md" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1376
+#: website/public/get-started/index.html:1375
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}IDA profiles, registration examples and verified platforms{ph1}"
 msgstr ""
 "{ph0}Perfiles de IDA, ejemplos de registro y plataformas verificadas{ph1}"
 
-#: website/public/get-started/index.html:1384
+#: website/public/get-started/index.html:1383
 msgctxt "page:get-started/index.html"
 msgid ""
 "Once connected, give your agent the original executable's full path and name"
@@ -14085,18 +14085,18 @@ msgstr ""
 
 #. {ph0}: <a href="../guides/native/">
 #. {ph1}: </a>
-#: website/public/get-started/index.html:1396
+#: website/public/get-started/index.html:1395
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Follow a native analysis example{ph1}"
 msgstr "{ph0}Sigue un ejemplo de análisis nativo{ph1}"
 
-#: website/public/get-started/index.html:1401
+#: website/public/get-started/index.html:1400
 msgctxt "page:get-started/index.html"
 msgid "Websites, Android, .NET, firmware and other targets"
 msgstr "Sitios web, Android, .NET, firmware y otros objetivos"
 
-#: website/public/get-started/index.html:1404
+#: website/public/get-started/index.html:1403
 msgctxt "page:get-started/index.html"
 msgid ""
 "Open the guide for the target you have. Each guide gives the additional "
@@ -14105,110 +14105,110 @@ msgstr ""
 "Abre la guía del tipo de objetivo que tienes. Cada guía indica las "
 "herramientas adicionales, los hosts compatibles y el primer comando."
 
-#: website/public/get-started/index.html:1412
+#: website/public/get-started/index.html:1411
 msgctxt "page:get-started/index.html"
 msgid "Target"
 msgstr "Objetivo"
 
-#: website/public/get-started/index.html:1413
+#: website/public/get-started/index.html:1412
 msgctxt "page:get-started/index.html"
 msgid "Tools to prepare"
 msgstr "Herramientas necesarias"
 
-#: website/public/get-started/index.html:1414
+#: website/public/get-started/index.html:1413
 msgctxt "page:get-started/index.html"
 msgid "Guide"
 msgstr "Guía"
 
-#: website/public/get-started/index.html:1419
+#: website/public/get-started/index.html:1418
 msgctxt "page:get-started/index.html"
 msgid "JavaScript / Electron"
 msgstr "JavaScript / Electron"
 
 #. {ph0}: <a href="../guides/javascript/">
 #. {ph1}: </a>
-#: website/public/get-started/index.html:1421
-#: website/public/get-started/index.html:1426
-#: website/public/get-started/index.html:1431
-#: website/public/get-started/index.html:1441
-#: website/public/get-started/index.html:1451
-#: website/public/get-started/index.html:1461
-#: website/public/get-started/index.html:1471
-#: website/public/get-started/index.html:1481
-#: website/public/get-started/index.html:1491
-#: website/public/get-started/index.html:1501
-#: website/public/get-started/index.html:1511
-#: website/public/get-started/index.html:1521
-#: website/public/get-started/index.html:1531
-#: website/public/get-started/index.html:1541
-#: website/public/get-started/index.html:1551
-#: website/public/get-started/index.html:1561
+#: website/public/get-started/index.html:1420
+#: website/public/get-started/index.html:1425
+#: website/public/get-started/index.html:1430
+#: website/public/get-started/index.html:1440
+#: website/public/get-started/index.html:1450
+#: website/public/get-started/index.html:1460
+#: website/public/get-started/index.html:1470
+#: website/public/get-started/index.html:1480
+#: website/public/get-started/index.html:1490
+#: website/public/get-started/index.html:1500
+#: website/public/get-started/index.html:1510
+#: website/public/get-started/index.html:1520
+#: website/public/get-started/index.html:1530
+#: website/public/get-started/index.html:1540
+#: website/public/get-started/index.html:1550
+#: website/public/get-started/index.html:1560
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Open guide{ph1}"
 msgstr "{ph0}Abrir guía{ph1}"
 
-#: website/public/get-started/index.html:1424
+#: website/public/get-started/index.html:1423
 msgctxt "page:get-started/index.html"
 msgid "Website"
 msgstr "Sitio web"
 
-#: website/public/get-started/index.html:1429
+#: website/public/get-started/index.html:1428
 msgctxt "page:get-started/index.html"
 msgid ".NET / Flutter / packages"
 msgstr ".NET / Flutter / paquetes"
 
-#: website/public/get-started/index.html:1439
+#: website/public/get-started/index.html:1438
 msgctxt "page:get-started/index.html"
 msgid "Android APK"
 msgstr "APK de Android"
 
-#: website/public/get-started/index.html:1449
+#: website/public/get-started/index.html:1448
 msgctxt "page:get-started/index.html"
 msgid "Android device"
 msgstr "Dispositivo Android"
 
-#: website/public/get-started/index.html:1459
+#: website/public/get-started/index.html:1458
 msgctxt "page:get-started/index.html"
 msgid "Android resources"
 msgstr "Recursos de Android"
 
-#: website/public/get-started/index.html:1469
+#: website/public/get-started/index.html:1468
 msgctxt "page:get-started/index.html"
 msgid "JEB project"
 msgstr "Proyecto JEB"
 
-#: website/public/get-started/index.html:1479
+#: website/public/get-started/index.html:1478
 msgctxt "page:get-started/index.html"
 msgid "Firmware"
 msgstr "Firmware"
 
-#: website/public/get-started/index.html:1489
+#: website/public/get-started/index.html:1488
 msgctxt "page:get-started/index.html"
 msgid "WASM"
 msgstr "WASM"
 
-#: website/public/get-started/index.html:1519
+#: website/public/get-started/index.html:1518
 msgctxt "page:get-started/index.html"
 msgid "ELF / Linux crash"
 msgstr "ELF / fallo de Linux"
 
-#: website/public/get-started/index.html:1529
+#: website/public/get-started/index.html:1528
 msgctxt "page:get-started/index.html"
 msgid "HAR / SAZ / mitmproxy"
 msgstr "HAR / SAZ / mitmproxy"
 
-#: website/public/get-started/index.html:1539
+#: website/public/get-started/index.html:1538
 msgctxt "page:get-started/index.html"
 msgid "PCAP / PCAPNG"
 msgstr "PCAP / PCAPNG"
 
-#: website/public/get-started/index.html:1549
+#: website/public/get-started/index.html:1548
 msgctxt "page:get-started/index.html"
 msgid "Logic signals"
 msgstr "Señales lógicas"
 
-#: website/public/get-started/index.html:1559
+#: website/public/get-started/index.html:1558
 msgctxt "page:get-started/index.html"
 msgid "Process behavior"
 msgstr "Comportamiento de procesos"
@@ -14224,7 +14224,7 @@ msgstr "Comportamiento de procesos"
 #. {ph5}: </a >
 #. {ph6}: <a href="../guides/">
 #. {ph7}: </a>
-#: website/public/get-started/index.html:1571
+#: website/public/get-started/index.html:1570
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14234,18 +14234,18 @@ msgstr ""
 "{ph0}Guía de Flutter{ph1} · {ph2}Paquetes y recursos{ph3} · {ph4}Bytecode de"
 " EVM{ph5} · {ph6}Todas las guías de investigación{ph7}"
 
-#: website/public/get-started/index.html:1591
+#: website/public/get-started/index.html:1590
 msgctxt "page:get-started/index.html"
 msgid "Use REA from a terminal"
 msgstr "Usa REA desde una terminal"
 
-#: website/public/get-started/index.html:1593
+#: website/public/get-started/index.html:1592
 msgctxt "page:get-started/index.html"
 msgid "CLI commands, global installation and curl"
 msgstr "Comandos CLI, instalación global y curl"
 
 #. {ph0}: <code>main</code>
-#: website/public/get-started/index.html:1690
+#: website/public/get-started/index.html:1689
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14255,7 +14255,7 @@ msgstr ""
 "Sustituye {ph0} por un nombre o una dirección de función de la lista de "
 "funciones del objetivo. Ghidra debe estar configurado previamente."
 
-#: website/public/get-started/index.html:1694
+#: website/public/get-started/index.html:1693
 msgctxt "page:get-started/index.html"
 msgid ""
 "On macOS or Linux, you can also use the curl installer after preparing "
@@ -14264,7 +14264,7 @@ msgstr ""
 "En macOS o Linux también puedes usar el instalador curl después de preparar "
 "Node.js:"
 
-#: website/public/get-started/index.html:1732
+#: website/public/get-started/index.html:1731
 msgctxt "page:get-started/index.html"
 msgid ""
 "Use the client check in step 3 with your setup ID. In editor clients, enable"
@@ -14274,12 +14274,12 @@ msgstr ""
 "configuración. En los clientes que son editores, activa REA en los ajustes "
 "MCP y autoriza sus herramientas en el chat del agente."
 
-#: website/public/get-started/index.html:1760
+#: website/public/get-started/index.html:1759
 msgctxt "page:get-started/index.html"
 msgid "Windows, WSL and paths with spaces"
 msgstr "Windows, WSL y rutas con espacios"
 
-#: website/public/get-started/index.html:1761
+#: website/public/get-started/index.html:1760
 msgctxt "page:get-started/index.html"
 msgid ""
 "Use Windows PowerShell for Windows clients and analysis tools. If your agent"
@@ -14291,17 +14291,17 @@ msgstr ""
 " entorno Linux y usa allí rutas de Linux. Los proveedores sin interfaz "
 "gráfica se ejecutan en el mismo host que REA."
 
-#: website/public/get-started/index.html:1770
+#: website/public/get-started/index.html:1769
 msgctxt "page:get-started/index.html"
 msgid "Windows setup command:"
 msgstr "Comando de configuración para Windows:"
 
-#: website/public/get-started/index.html:1787
+#: website/public/get-started/index.html:1786
 msgctxt "page:get-started/index.html"
 msgid "Update or remove REA"
 msgstr "Actualiza o elimina REA"
 
-#: website/public/get-started/index.html:1788
+#: website/public/get-started/index.html:1787
 msgctxt "page:get-started/index.html"
 msgid ""
 "To refresh your agent connection, run the latest setup command again, review"
@@ -14312,7 +14312,7 @@ msgstr ""
 
 #. {ph0}: <code>rea update</code>
 #. {ph1}: <code>npx rea-agents@latest uninstall</code>
-#: website/public/get-started/index.html:1806
+#: website/public/get-started/index.html:1805
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14326,7 +14326,7 @@ msgstr ""
 #. href="https://github.com/morluto/rea/blob/main/docs/installation.md#diagnose-
 #. update-and-remove" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1812
+#: website/public/get-started/index.html:1811
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Update and uninstall details{ph1}"
@@ -14349,18 +14349,18 @@ msgstr "Copiar el comando de configuración de REA para Windows"
 #: website/public/get-started/index.html:832
 #: website/public/get-started/index.html:847
 #: website/public/get-started/index.html:895
-#: website/public/get-started/index.html:1083
-#: website/public/get-started/index.html:1145
-#: website/public/get-started/index.html:1168
-#: website/public/get-started/index.html:1192
-#: website/public/get-started/index.html:1240
-#: website/public/get-started/index.html:1315
-#: website/public/get-started/index.html:1341
-#: website/public/get-started/index.html:1358
-#: website/public/get-started/index.html:1679
-#: website/public/get-started/index.html:1701
-#: website/public/get-started/index.html:1774
-#: website/public/get-started/index.html:1795
+#: website/public/get-started/index.html:1082
+#: website/public/get-started/index.html:1144
+#: website/public/get-started/index.html:1167
+#: website/public/get-started/index.html:1191
+#: website/public/get-started/index.html:1239
+#: website/public/get-started/index.html:1314
+#: website/public/get-started/index.html:1340
+#: website/public/get-started/index.html:1357
+#: website/public/get-started/index.html:1678
+#: website/public/get-started/index.html:1700
+#: website/public/get-started/index.html:1773
+#: website/public/get-started/index.html:1794
 msgctxt "page:get-started/index.html"
 msgid "Copy command"
 msgstr "Copiar comando"
@@ -14416,14 +14416,14 @@ msgctxt "page:get-started/index.html"
 msgid "OpenCode · choose an AI model"
 msgstr "OpenCode · elige un modelo de IA"
 
-#: website/public/get-started/index.html:1299
+#: website/public/get-started/index.html:1298
 msgctxt "page:get-started/index.html"
 msgid "Prepare the IDA registration file"
 msgstr "Prepara el archivo de registro de IDA"
 
 #. {ph0}: <code>ida-mcp.json</code>
 #. {ph1}: <code>.txt</code>
-#: website/public/get-started/index.html:1300
+#: website/public/get-started/index.html:1299
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14439,7 +14439,7 @@ msgstr ""
 #. {ph0}: <code>idb_open</code>
 #. {ph1}: <code>idb_list</code>
 #. {ph2}: <code>idb_close</code>
-#: website/public/get-started/index.html:1307
+#: website/public/get-started/index.html:1306
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14452,7 +14452,7 @@ msgstr ""
 #. {ph0}: <code>command</code>
 #. {ph1}: <code>args</code>
 #. {ph2}: <code>env</code>
-#: website/public/get-started/index.html:1330
+#: website/public/get-started/index.html:1329
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -14465,12 +14465,12 @@ msgstr ""
 " binario original en IDA e inicia el complemento de ese servidor antes de "
 "pedir a REA que lo inspeccione."
 
-#: website/public/get-started/index.html:1499
+#: website/public/get-started/index.html:1498
 msgctxt "page:get-started/index.html"
 msgid "SQLite database"
 msgstr "Base de datos SQLite"
 
-#: website/public/get-started/index.html:1509
+#: website/public/get-started/index.html:1508
 msgctxt "page:get-started/index.html"
 msgid "EVM bytecode"
 msgstr "Bytecode de EVM"
@@ -14529,7 +14529,7 @@ msgstr ""
 "Revisa y aprueba el plan, vuelve a abrir Claude y {ph0}comprueba la conexión"
 " en el paso 3{ph1}."
 
-#: website/public/get-started/index.html:1204
+#: website/public/get-started/index.html:1203
 msgctxt "page:get-started/index.html"
 msgid ""
 "Replace both paths with your existing installations. For a fresh macOS or "
@@ -14540,12 +14540,12 @@ msgstr ""
 "instalación nueva de macOS o Linux arm64, compila el descompilador nativo "
 "para tu ordenador antes de continuar."
 
-#: website/public/get-started/index.html:1210
+#: website/public/get-started/index.html:1209
 msgctxt "page:get-started/index.html"
 msgid "Build Ghidra's native decompiler"
 msgstr "Compila el descompilador nativo de Ghidra"
 
-#: website/public/get-started/index.html:1211
+#: website/public/get-started/index.html:1210
 msgctxt "page:get-started/index.html"
 msgid ""
 "On macOS, the build needs Xcode Command Line Tools, make and bison. Use the "
@@ -14558,7 +14558,7 @@ msgstr ""
 #. href="https://github.com/morluto/rea/blob/main/docs/installation.md#missing-
 #. macos-native-decompiler" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1216
+#: website/public/get-started/index.html:1215
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}macOS · Intel{ph1}"
@@ -14568,7 +14568,7 @@ msgstr "{ph0}macOS · Intel{ph1}"
 #. href="https://github.com/morluto/rea/blob/main/docs/installation.md#macos-
 #. arm64-native-decompiler" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1222
+#: website/public/get-started/index.html:1221
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}macOS · Apple Silicon{ph1}"
@@ -14578,13 +14578,13 @@ msgstr "{ph0}macOS · Apple Silicon{ph1}"
 #. href="https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/GhidraDocs/GettingStarted.md#building-
 #. native-components" >
 #. {ph1}: </a >
-#: website/public/get-started/index.html:1228
+#: website/public/get-started/index.html:1227
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Linux arm64 · native build instructions{ph1}"
 msgstr "{ph0}Linux arm64 · instrucciones de compilación nativa{ph1}"
 
-#: website/public/get-started/index.html:1236
+#: website/public/get-started/index.html:1235
 msgctxt "page:get-started/index.html"
 msgid "Then check Ghidra and save its paths for your client:"
 msgstr "Después, comprueba Ghidra y guarda sus rutas para tu cliente:"
@@ -14988,7 +14988,7 @@ msgid "Other install options: {ph0}{ph1} →{ph2}"
 msgstr "Otras formas de instalación: {ph0}{ph1} →{ph2}"
 
 #. {ph0}: <code>rea setup</code>
-#: website/public/get-started/index.html:1712
+#: website/public/get-started/index.html:1711
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -15003,7 +15003,7 @@ msgstr ""
 #. setup" >
 #. {ph1}: </a >
 #. {ph2}: <code>6.4.0</code>
-#: website/public/get-started/index.html:1283
+#: website/public/get-started/index.html:1282
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -15018,7 +15018,7 @@ msgstr ""
 #. {ph0}: <code>node scripts/rea.mjs doctor --provider ida --json</code>
 #. {ph1}: <code>node scripts/rea.mjs setup</code>
 #. {ph2}: <code>npx</code>
-#: website/public/get-started/index.html:1292
+#: website/public/get-started/index.html:1291
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -15030,7 +15030,7 @@ msgstr ""
 
 #. {ph0}: <code>rea</code>
 #. {ph1}: <code>"$HOME/.local/bin/rea" setup</code>
-#: website/public/get-started/index.html:1716
+#: website/public/get-started/index.html:1715
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -15041,7 +15041,7 @@ msgstr ""
 "instalador. En Linux, el comando de configuración predeterminado es {ph1}."
 
 #. {ph0}: <code>/absolute/path/to/program</code>
-#: website/public/get-started/index.html:1389
+#: website/public/get-started/index.html:1388
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -15060,7 +15060,7 @@ msgstr ""
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
 #: website/public/first-investigation/index.html:534
-#: website/public/get-started/index.html:1851
+#: website/public/get-started/index.html:1850
 #: website/public/guides/browser/index.html:507
 #: website/public/guides/index.html:301
 #: website/public/guides/javascript/index.html:511
@@ -15979,28 +15979,6 @@ msgctxt "page:get-started/index.html"
 msgid "x86_64 installer on supported distributions"
 msgstr ""
 
-#: website/public/get-started/index.html:1072
-msgctxt "page:get-started/index.html"
-msgid ""
-"Automated Linux setup requires an x86_64 host running Ubuntu 24.04+, Fedora "
-"41+, Nobara 44+, Arch Linux, CachyOS or Omarchy. An existing Hopper launcher"
-" can also be configured on other supported Linux distributions. On other "
-"Linux architectures, use Ghidra. Hopper is commercial software; its demo has"
-" vendor-defined limits."
-msgstr ""
-
-#. {ph0}: <strong>
-#. {ph1}: </strong>
-#: website/public/guides/native/index.html:316
-#, python-brace-format
-msgctxt "page:guides/native/index.html"
-msgid ""
-"{ph0}Hopper{ph1} (macOS or Linux): REA's setup detects it or offers to "
-"install it. On macOS, open Hopper once and choose demo mode or activate a "
-"license before your first analysis. Automated Linux setup requires x86_64; "
-"use Ghidra on other Linux architectures."
-msgstr ""
-
 #. {ph0}: <a href="../../get-started/">
 #. {ph1}: </a>
 #. {ph2}: <a href="https://github.com/morluto/rea/blob/main/docs/android-
@@ -16016,6 +15994,46 @@ msgid ""
 "prerequisites and PowerShell setup. A Linux environment such as WSL is "
 "another option."
 msgstr ""
+
+#: website/public/get-started/index.html:1072
+msgctxt "page:get-started/index.html"
+msgid ""
+"Automated Linux setup requires an x86_64 host running Ubuntu 24.04+, Fedora "
+"41+, Nobara 44+, Arch Linux, CachyOS or Omarchy. An existing Hopper launcher"
+" can also be configured on other supported Linux distributions. On Linux "
+"arm64, use Ghidra. Hopper is commercial software; its demo has vendor-"
+"defined limits."
+msgstr ""
+
+#. {ph0}: <strong>
+#. {ph1}: </strong>
+#: website/public/guides/native/index.html:316
+#, python-brace-format
+msgctxt "page:guides/native/index.html"
+msgid ""
+"{ph0}Hopper{ph1} (macOS or Linux): REA's setup detects it or offers to "
+"install it. On macOS, open Hopper once and choose demo mode or activate a "
+"license before your first analysis. Automated Linux setup requires x86_64; "
+"use Ghidra on Linux arm64."
+msgstr ""
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid ""
+#~ "Automated Linux setup requires an x86_64 host running Ubuntu 24.04+, Fedora "
+#~ "41+, Nobara 44+, Arch Linux, CachyOS or Omarchy. An existing Hopper launcher"
+#~ " can also be configured on other supported Linux distributions. On other "
+#~ "Linux architectures, use Ghidra. Hopper is commercial software; its demo has"
+#~ " vendor-defined limits."
+#~ msgstr ""
+
+#, python-brace-format
+#~ msgctxt "page:guides/native/index.html"
+#~ msgid ""
+#~ "{ph0}Hopper{ph1} (macOS or Linux): REA's setup detects it or offers to "
+#~ "install it. On macOS, open Hopper once and choose demo mode or activate a "
+#~ "license before your first analysis. Automated Linux setup requires x86_64; "
+#~ "use Ghidra on other Linux architectures."
+#~ msgstr ""
 
 #, python-brace-format
 #~ msgctxt "page:guides/native/index.html"
