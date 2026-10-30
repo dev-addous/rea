@@ -36,7 +36,14 @@ if (!Object.hasOwn(requirements, lane ?? "") || !reportPath)
   throw new Error(
     "Expected provider test lane (packet or signal) and report path",
   );
-const report = JSON.parse(await readFile(reportPath, "utf8"));
+const root = resolve(process.cwd());
+const rootPrefix = `${root}${sep}`;
+const reportFile = resolve(root, reportPath);
+if (!reportFile.startsWith(rootPrefix)) {
+  const failure = { code: "report_path_outside_checkout" };
+  throw Object.assign(new Error(JSON.stringify(failure)), failure);
+}
+const report = JSON.parse(await readFile(reportFile, "utf8"));
 if (report?.success !== true || !Array.isArray(report.testResults))
   throw new Error(
     "Provider test report is missing a successful test inventory",

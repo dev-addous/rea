@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,7 +62,10 @@ const report = (lane: "packet" | "signal") => ({
         ],
 });
 const run = (lane: string, value: unknown) => {
-  const directory = mkdtempSync(join(tmpdir(), "rea-required-cases-"));
+  mkdirSync(join(process.cwd(), ".cache"), { recursive: true });
+  const directory = mkdtempSync(
+    join(process.cwd(), ".cache", "rea-required-cases-"),
+  );
   try {
     const path = join(directory, "report.json");
     writeFileSync(path, JSON.stringify(value));
@@ -67,6 +76,18 @@ const run = (lane: string, value: unknown) => {
     });
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+};
+const outsideReportFailure = (reportPath: string) => {
+  try {
+    execFileSync(process.execPath, [script, "packet", reportPath], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return undefined;
+  } catch (error) {
+    return error;
   }
 };
 
@@ -110,6 +131,25 @@ it.each(["packet", "signal"] as const)(
     );
     expect(() => run(lane, { success: true, testResults: [] })).toThrow();
     expect(() => run(lane, { success: false, testResults: [] })).toThrow();
+  },
+);
+
+it.each([
+  ["parent", resolve(process.cwd(), "..", "rea-provider-report.json")],
+  ["sibling prefix", `${resolve(process.cwd())}-outside/report.json`],
+  ["absolute outside", resolve(tmpdir(), "rea-provider-report.json")],
+] as const)(
+  "rejects a %s report path outside the checkout",
+  (_label, reportPath) => {
+    const failure = z
+      .object({ status: z.literal(1), stderr: z.string() })
+      .parse(outsideReportFailure(reportPath));
+    const encoded = failure.stderr.match(
+      /\{"code":"report_path_outside_checkout"\}/u,
+    )?.[0];
+    expect(JSON.parse(encoded ?? "")).toEqual({
+      code: "report_path_outside_checkout",
+    });
   },
 );
 

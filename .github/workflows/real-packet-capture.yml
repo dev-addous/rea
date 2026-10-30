@@ -50,7 +50,8 @@ jobs:
       - run: npm run build:cached
       - name: Run focused tests and require Linux resource and cleanup cases
         run: |
-          report="$RUNNER_TEMP/rea-packet-required-tests.json"
+          report=".cache/rea-packet-required-tests.json"
+          mkdir -p .cache
           rm -f "$report"
           node scripts/run-exact-tests.mjs run --reporter=default --reporter=json --outputFile.json="$report" \
             tests/boundary/captures/fieldDiscovery.test.ts src/process/LinuxResourceLimits.test.ts tests/boundary/captures/captureProvider.test.ts tests/boundary/captures/captureDescriptorCleanup.test.ts tests/boundary/pcap/pcapProvider.test.ts tests/boundary/pcap/pcapProviderCrossPlatform.test.ts tests/boundary/captures/resourceLimits.test.ts tests/boundary/captures/packetOutput.test.ts tests/boundary/mcp/packetCaptureMcp.test.ts tests/boundary/cli/captureCleanup.test.ts
