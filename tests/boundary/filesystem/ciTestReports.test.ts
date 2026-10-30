@@ -748,17 +748,22 @@ it("discovers Python bridge tests and fails on a newly added failing producer te
   );
   const passing =
     "import unittest\nclass Example(unittest.TestCase):\n def test_case(self): pass\n";
+  for (const family of ["mitmproxy", "native", "pwndbg"]) {
+    await mkdir(join(root, "bridge", family), { recursive: true });
+    await writeFile(join(root, "bridge", family, "capture.py"), "VALUE = 1\n");
+    await writeFile(join(root, "bridge", family, "test_case.py"), passing);
+  }
   await writeFile(join(root, "bridge", "example", "test_first.py"), passing);
   await writeFile(
     join(root, "tests", "support", "analysis-efficiency", "test_example.py"),
     passing,
   );
   const command = ["scripts/run-python-tests.py"];
-  await expect(
-    execute("python3", command, { cwd: root }),
-  ).resolves.toMatchObject({
-    stderr: expect.stringContaining("OK"),
-  });
+  const discovered = await execute("python3", command, { cwd: root });
+  expect(discovered.stderr).toContain("bridge.mitmproxy.test_case");
+  expect(discovered.stderr).toContain("bridge.native.test_case");
+  expect(discovered.stderr).toContain("bridge.pwndbg.test_case");
+  expect(discovered.stderr).toContain("OK");
   await writeFile(
     join(root, "bridge", "example", "test_second.py"),
     "import unittest\nclass Example(unittest.TestCase):\n def test_case(self): self.fail('new test executed')\n",
@@ -768,5 +773,15 @@ it("discovers Python bridge tests and fails on a newly added failing producer te
   ).rejects.toMatchObject({
     code: 1,
     stderr: expect.stringContaining("new test executed"),
+  });
+  await rm(join(root, "bridge", "mitmproxy", "test_case.py"));
+  const missingFamily = await execute("python3", command, { cwd: root }).then(
+    () => undefined,
+    (error: { code?: unknown; stderr?: unknown }) => error,
+  );
+  expect(missingFamily).toMatchObject({ code: 1 });
+  expect(JSON.parse(String(missingFamily?.stderr))).toEqual({
+    code: "missing_bridge_family",
+    families: ["mitmproxy"],
   });
 });

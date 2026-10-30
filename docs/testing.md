@@ -856,10 +856,11 @@ job and do not gate provider admission. On the fast tier, changes to Python
 bridges, analysis-efficiency inputs, or the Python test runner select a separate
 required Python job. That job installs locked dependencies and prepares the
 compiled runtime before the suite, because analysis-efficiency checks import
-built process modules. Bridge tests are discovered from the source tree; missing
-test families and newly added failing tests fail the job. Portable test shards
-and documentation checks remain independent of static results, so they can still
-provide diagnostic feedback. The required gate rejects skipped selected lanes when
+built process modules. Bridge tests are discovered from the source tree. The
+mitmproxy, native, and pwndbg families must each keep a test module, and a
+newly added failing test fails the job. Portable test shards and documentation
+checks remain independent of static results, so they can still provide
+diagnostic feedback. The required gate rejects skipped selected lanes when
 static checks fail; on the full tier it also requires the deep static job.
 Passing revisions retain all selected coverage. This ordering reduces peak
 demand on invalid revisions but can add static-check waiting to otherwise
