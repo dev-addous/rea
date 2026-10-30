@@ -419,9 +419,24 @@ it("runs the existing onboarding and Python producer guards from their selected 
   expect(scripts["test:python"]).toBe("python3 scripts/run-python-tests.py");
   expect(jobs.python.if).toContain("outputs.python == 'true'");
   expect(jobs.python.if).toContain("tier == 'fast'");
-  expect(
-    jobs.python.steps.some((step) => step.run === "npm run test:python"),
-  ).toBe(true);
+  const downloadCache = jobs.python.steps.findIndex(
+    (step) => step.uses === "./.github/actions/npm-cache",
+  );
+  const install = jobs.python.steps.findIndex((step) => step.run === "npm ci");
+  const prepare = jobs.python.steps.findIndex(
+    (step) => step.run === "npm run test:prepare",
+  );
+  const suite = jobs.python.steps.findIndex(
+    (step) => step.run === "npm run test:python",
+  );
+  const cache = jobs.python.steps.findIndex(
+    (step) => step.uses === "./.github/actions/portable-build-cache",
+  );
+  expect(downloadCache).toBeGreaterThanOrEqual(0);
+  expect(install).toBeGreaterThan(downloadCache);
+  expect(cache).toBeGreaterThan(install);
+  expect(prepare).toBeGreaterThan(cache);
+  expect(suite).toBeGreaterThan(prepare);
 });
 
 it("exports portable timing history and removes it on a failed, partial, or invalid rerun", async () => {

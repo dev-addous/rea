@@ -301,8 +301,9 @@ Turbo caches deterministic preparation and static checks, but `test:run` always
 executes. Repository files do not fully describe installed tool contents or host
 state. A previous test pass therefore cannot replace current validation, even
 when the source tree is unchanged. `check:pr` also runs the fast Python producer
-suite; CI runs it in the static job for code changes. These producer tests do not
-establish real LLDB engine coverage.
+suite. Fast CI runs it from the selected Python job after installing dependencies
+and preparing the compiled runtime; full qualification runs it from the deep
+static job. These producer tests do not establish real LLDB engine coverage.
 
 Vitest's persistent compile cache remains disabled. The `cliTest` fixture shares
 a temporary Node compile cache among its fresh CLI subprocesses. The worker
@@ -853,10 +854,12 @@ allocating their runners. Knip, duplication, architecture guards, test
 discovery, and the Python producer run in the separate full-tier deep static
 job and do not gate provider admission. On the fast tier, changes to Python
 bridges, analysis-efficiency inputs, or the Python test runner select a separate
-required Python job. Bridge tests are discovered from the source tree; missing
-test families and newly added failing tests fail the job. Portable test shards and documentation
-checks remain independent of static results, so they can still provide
-diagnostic feedback. The required gate rejects skipped selected lanes when
+required Python job. That job installs locked dependencies and prepares the
+compiled runtime before the suite, because analysis-efficiency checks import
+built process modules. Bridge tests are discovered from the source tree; missing
+test families and newly added failing tests fail the job. Portable test shards
+and documentation checks remain independent of static results, so they can still
+provide diagnostic feedback. The required gate rejects skipped selected lanes when
 static checks fail; on the full tier it also requires the deep static job.
 Passing revisions retain all selected coverage. This ordering reduces peak
 demand on invalid revisions but can add static-check waiting to otherwise
