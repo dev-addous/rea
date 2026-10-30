@@ -851,7 +851,10 @@ Native, provider, fixture, SQLite compatibility, and website lanes wait for
 the fast static checks (typecheck, built lint, and format) to succeed before
 allocating their runners. Knip, duplication, architecture guards, test
 discovery, and the Python producer run in the separate full-tier deep static
-job and do not gate provider admission. Portable test shards and documentation
+job and do not gate provider admission. On the fast tier, changes to Python
+bridges, analysis-efficiency inputs, or the Python test runner select a separate
+required Python job. Bridge tests are discovered from the source tree; missing
+test families and newly added failing tests fail the job. Portable test shards and documentation
 checks remain independent of static results, so they can still provide
 diagnostic feedback. The required gate rejects skipped selected lanes when
 static checks fail; on the full tier it also requires the deep static job.
@@ -1579,7 +1582,14 @@ Inspector, setup, configuration and packaging entrypoints. Runtime sources under
 and the Linux x64 installed-package/Inspector baseline only. Test-only changes
 run the Linux suite without native package verification, except test files that
 the Apple or Windows curated lanes invoke explicitly, which also select that
-lane. Edits to verifier entrypoints run only by manual, licensed or self-hosted
+lane. Packet-capture and signal-recording tests and their producers select the
+corresponding real-tool lane; both also run in full qualification. The shared
+Linux resource-limit source and its tests select both. Each lane requires
+its Linux kernel resource-limit cases and all seven descriptor-cleanup cases to
+pass in the focused Vitest report. A missing report, missing case, skipped case,
+or duplicate identity fails the lane; unrelated host-specific skips remain
+allowed. These tests use synthetic producers. The separate real TShark or
+sigrok verifier establishes the actual-tool observation. Edits to verifier entrypoints run only by manual, licensed or self-hosted
 workflows run static checks and the Linux suite. Website changes run website
 checks. Provider workflow changes validate the workflow and run that provider's
 verifier. Changes under `bridge/ghidra/` also select the `ghidra_bridge` lane,
@@ -1847,8 +1857,8 @@ Portable owner-based test selection remains observational. Its reports compare
 proposed omissions with the full run; incomplete or skipped observations do not
 establish that fewer tests would preserve regression detection.
 
-The nine automatic browser, binary-layout, EVM, JavaScript-recovery,
-recorded-crash, web and environment-bundle provider lanes download
+The automatic browser, binary-layout, EVM, JavaScript-recovery, packet-capture,
+signal-recording, recorded-crash, web and environment-bundle provider lanes download
 `rea-build-cache` from their own run after the build and static jobs succeed. Their existing build commands still
 validate task hashes and rebuild mismatched inputs; provider observations always
 run. Provider-workflow-only edits also admit the build without enabling source

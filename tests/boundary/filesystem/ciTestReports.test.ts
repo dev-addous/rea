@@ -60,6 +60,7 @@ const workflow = async () =>
         test: z.object({ steps: stepsSchema }),
         build: z.object({ steps: stepsSchema }),
         docs: z.object({ steps: stepsSchema }),
+        python: z.object({ if: z.string(), steps: stepsSchema }),
         static: z.object({ steps: stepsSchema }),
         "static-deep": z.object({
           if: z.string(),
@@ -415,9 +416,12 @@ it("runs the existing onboarding and Python producer guards from their selected 
   expect(scripts["check:ci:fast:tasks"]).toBe(
     "node scripts/run-turbo.mjs run typecheck lint format:check",
   );
-  expect(scripts["test:python"]).toContain(
-    "bridge/native/test_rea_lldb_tracer.py",
-  );
+  expect(scripts["test:python"]).toBe("python3 scripts/run-python-tests.py");
+  expect(jobs.python.if).toContain("outputs.python == 'true'");
+  expect(jobs.python.if).toContain("tier == 'fast'");
+  expect(
+    jobs.python.steps.some((step) => step.run === "npm run test:python"),
+  ).toBe(true);
 });
 
 it("exports portable timing history and removes it on a failed, partial, or invalid rerun", async () => {
@@ -712,4 +716,42 @@ it("records failed omissions from full reports without treating partial or unhan
   await expect(
     readFile(join(root, ".cache/ci-test-history/test-results.json")),
   ).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("discovers Python bridge tests and fails on a newly added failing producer test", async () => {
+  const root = await createTestTempDirectory("rea-python-inventory-");
+  await mkdir(join(root, "scripts"), { recursive: true });
+  await mkdir(join(root, "bridge", "example"), { recursive: true });
+  await mkdir(join(root, "tests", "support", "analysis-efficiency"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, "scripts", "run-python-tests.py"),
+    await readFile(
+      new URL("../../../scripts/run-python-tests.py", import.meta.url),
+    ),
+  );
+  const passing =
+    "import unittest\nclass Example(unittest.TestCase):\n def test_case(self): pass\n";
+  await writeFile(join(root, "bridge", "example", "test_first.py"), passing);
+  await writeFile(
+    join(root, "tests", "support", "analysis-efficiency", "test_example.py"),
+    passing,
+  );
+  const command = ["scripts/run-python-tests.py"];
+  await expect(
+    execute("python3", command, { cwd: root }),
+  ).resolves.toMatchObject({
+    stderr: expect.stringContaining("OK"),
+  });
+  await writeFile(
+    join(root, "bridge", "example", "test_second.py"),
+    "import unittest\nclass Example(unittest.TestCase):\n def test_case(self): self.fail('new test executed')\n",
+  );
+  await expect(
+    execute("python3", command, { cwd: root }),
+  ).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("new test executed"),
+  });
 });
