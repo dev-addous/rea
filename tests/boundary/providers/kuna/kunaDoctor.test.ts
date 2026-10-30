@@ -75,8 +75,10 @@ it("flags an unverified release without failing the installation", async () => {
   expect(inspection.checks[0]).toMatchObject({
     ok: true,
     detail: expect.stringContaining(
-      "this release's project layout is unverified",
+      "You may continue with the selected unverified release.",
     ),
+    remediation: expect.stringContaining("setting REA_KUNA_COMMAND"),
+    details: { verified_version: "1.986" },
   });
 });
 
