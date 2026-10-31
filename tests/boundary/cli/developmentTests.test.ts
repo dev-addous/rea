@@ -307,20 +307,23 @@ describe("development test runner cancellation", () => {
       const ready = join(root, "descendant-ready");
       const activity = join(root, "descendant-activity");
       const release = join(root, "descendant-release");
-      const descendant = `
+      await writeFile(
+        join(root, "descendant.cjs"),
+        `
         const fs = require("node:fs");
         process.on("SIGTERM", () => {});
-        fs.writeFileSync(${JSON.stringify(activity)}, "active\\n");
-        fs.writeFileSync(${JSON.stringify(ready)}, "ready");
+        fs.writeFileSync("descendant-activity", "active\\n");
+        fs.writeFileSync("descendant-ready", "ready");
         const timer = setInterval(() => {
-          if (fs.existsSync(${JSON.stringify(release)})) { clearInterval(timer); clearTimeout(deadline); return; }
-          fs.appendFileSync(${JSON.stringify(activity)}, "active\\n");
+          if (fs.existsSync("descendant-release")) { clearInterval(timer); clearTimeout(deadline); return; }
+          fs.appendFileSync("descendant-activity", "active\\n");
         }, 20);
         const deadline = setTimeout(() => clearInterval(timer), 10000);
-      `;
+      `,
+      );
       await writeFile(
         join(root, "src/value.test.ts"),
-        `import { it } from "vitest"; import { spawn } from "node:child_process"; it("waits", async () => { spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: "ignore" }); await new Promise(() => {}); }, 30000);`,
+        'import { it } from "vitest"; import { spawn } from "node:child_process"; it("waits", async () => { spawn(process.execPath, ["descendant.cjs"], { stdio: "ignore" }); await new Promise(() => {}); }, 30000);',
       );
       const runner = spawn(
         process.execPath,

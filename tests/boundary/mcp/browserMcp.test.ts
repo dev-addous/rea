@@ -505,7 +505,20 @@ const verifySessionAndComparisonTools = async (
     arguments: { before: { inspection: capture } },
   });
   expect(incompleteComparison.isError).toBe(true);
-  const screenshot = await connected.client.callTool({
+  await verifyScreenshotTools(connected.client, browser);
+  expect(inspected.structuredContent).toMatchObject({
+    normalized_result: expect.any(Object),
+    operation: "inspect_web_page",
+    predicate_type: expect.any(String),
+    parameters: expect.any(Object),
+  });
+};
+
+const verifyScreenshotTools = async (
+  client: Client,
+  browser: FakeCdpBrowser,
+): Promise<void> => {
+  const screenshot = await client.callTool({
     name: "capture_web_screenshot",
     arguments: {
       cdp_endpoint: browser.endpoint,
@@ -515,7 +528,7 @@ const verifySessionAndComparisonTools = async (
   });
   expect(screenshot.isError).not.toBe(true);
   const screenshotArtifact = artifactOf(screenshot.structuredContent);
-  const visual = await connected.client.callTool({
+  const visual = await client.callTool({
     name: "compare_web_screenshots",
     arguments: {
       before: screenshotArtifact,
@@ -527,13 +540,31 @@ const verifySessionAndComparisonTools = async (
     normalized_result: { status: "identical", changed_pixels: 0 },
   });
 
-  await assertScreenshotPngFailures(connected.client);
-  expect(inspected.structuredContent).toMatchObject({
-    normalized_result: expect.any(Object),
-    operation: "inspect_web_page",
-    predicate_type: expect.any(String),
-    parameters: expect.any(Object),
+  const before = singlePixelScreenshot([0, 0, 0]);
+  const after = singlePixelScreenshot([10, 0, 0]);
+  const changed = await client.callTool({
+    name: "compare_web_screenshots",
+    arguments: { before, after, channel_threshold: 2 },
   });
+  expect(changed.isError).not.toBe(true);
+  expect(changed.structuredContent).toMatchObject({
+    parameters: {
+      before_artifact_sha256: before.sha256,
+      after_artifact_sha256: after.sha256,
+      channel_threshold: 2,
+    },
+    normalized_result: {
+      status: "different",
+      channel_threshold: 2,
+      compared_pixels: 1,
+      changed_pixels: 1,
+      changed_ratio: 1,
+      maximum_channel_delta: 10,
+      mean_absolute_channel_delta: 2.5,
+    },
+  });
+
+  await assertScreenshotPngFailures(client);
 };
 
 const pngChunk = (type: string, data: Buffer): Buffer => {
@@ -546,6 +577,21 @@ const pngChunk = (type: string, data: Buffer): Buffer => {
     8 + data.length,
   );
   return chunk;
+};
+
+const singlePixelScreenshot = (rgb: readonly [number, number, number]) => {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  return createWebScreenshotArtifact(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk("IHDR", header),
+      pngChunk("IDAT", deflateSync(Buffer.from([0, ...rgb]))),
+      pngChunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
 };
 
 const assertScreenshotPngFailures = async (client: Client): Promise<void> => {

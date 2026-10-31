@@ -8,6 +8,7 @@ import { expect, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { awaitAcknowledgement } from "../../fixtures/lifecycleAcknowledgement.js";
 import { workspaceCliTest } from "../../support/cli/workspaceCliFixture.js";
 import { acquireHopperTargetLease } from "../../../src/process/HopperLease.js";
 
@@ -21,6 +22,33 @@ const stopChild = async (child: ChildProcess) => {
   );
   child.kill("SIGKILL");
   await exited;
+};
+
+const closeWithLateBridge = async (
+  mcp: Client,
+  startBridge: () => ChildProcess,
+): Promise<ChildProcess> => {
+  let closeStarted!: () => void;
+  const started = new Promise<void>((resolveStarted) => {
+    closeStarted = resolveStarted;
+  });
+  const closing = mcp.callTool(
+    { name: "close_binary", arguments: {} },
+    { onprogress: () => closeStarted() },
+  );
+  let closeAcknowledged = false;
+  try {
+    await awaitAcknowledgement(started, closing, "late bridge close progress");
+    closeAcknowledged = true;
+    // A verified close may remove the socket before the fixture can poll it.
+    // The successful close and child exit establish the owned bridge outcome.
+    const owned = startBridge();
+    expect((await closing).isError).not.toBe(true);
+    return owned;
+  } finally {
+    if (!closeAcknowledged) await mcp.close();
+    await Promise.allSettled([closing]);
+  }
 };
 
 test.for(["target", "loader"] as const)(
@@ -338,19 +366,7 @@ test.for(["handoff", "not-found"] as const)(
       await stopChild(wrong);
       await rm(socket, { force: true });
     }
-    let closeStarted!: () => void;
-    const started = new Promise<void>((resolveStarted) => {
-      closeStarted = resolveStarted;
-    });
-    const closing = mcp.callTool(
-      { name: "close_binary", arguments: {} },
-      { onprogress: () => closeStarted() },
-    );
-    await started;
-    // A verified close may remove the socket before the fixture can poll it.
-    // The successful close and child exit establish the owned bridge outcome.
-    const owned = lateBridge(runId);
-    expect((await closing).isError).not.toBe(true);
+    const owned = await closeWithLateBridge(mcp, () => lateBridge(runId));
     await vi.waitFor(() => expect(owned.exitCode).toBe(0));
     await expect(access(runtime)).rejects.toMatchObject({ code: "ENOENT" });
     await writeFile(mode, "bridge");

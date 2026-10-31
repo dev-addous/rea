@@ -16,7 +16,7 @@ import {
 import { basename, dirname, join, relative } from "node:path";
 import canonicalize from "canonicalize";
 
-import { expect, it as test, onTestFinished, vi } from "vitest";
+import { expect, it as test, vi } from "vitest";
 
 import { inspectKunaInstallationOwned as inspectKunaInstallation } from "./kunaResourceScope.js";
 import { cleanupOwnedProcessGroup } from "../../../../src/process/ProcessOwnership.js";
@@ -28,6 +28,7 @@ import {
 } from "../../../../src/kuna/KunaProjectCache.js";
 import type { KunaExportStatus } from "../../../../src/kuna/KunaProjectExport.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { awaitAcknowledgement } from "../../../fixtures/lifecycleAcknowledgement.js";
 import { OwnedFileHandle } from "../../../../src/filesystem/OwnedFileHandle.js";
 import { RegularFileCleanupFailure } from "../../../../src/filesystem/OwnedRegularFile.js";
 import * as stableFileHash from "../../../../src/filesystem/StableFileHash.js";
@@ -394,20 +395,26 @@ it.each(["success", "failure"] as const)(
         return closeOwner.call(this);
       });
 
+    const firstLookup = warmCache
+      .lookup(built.value.key)
+      .catch((cause: unknown) => cause);
     try {
-      const firstLookup = warmCache
-        .lookup(built.value.key)
-        .catch((cause) => cause);
-      await initialCloseEntered.promise;
+      await awaitAcknowledgement(
+        initialCloseEntered.promise,
+        firstLookup,
+        "initial descriptor close",
+      );
       initialClose.reject(initialCloseFailure);
       // The failed descriptor is retained before the first lookup binds its
       // originating error, so this lookup begins the retry in that window.
-      queueMicrotask(() => {
-        concurrentLookup = warmCache
-          .lookup(built.value.key)
-          .catch((cause: unknown) => cause);
-      });
-      await retryEntered.promise;
+      concurrentLookup = Promise.resolve().then(() =>
+        warmCache.lookup(built.value.key).catch((cause: unknown) => cause),
+      );
+      await awaitAcknowledgement(
+        retryEntered.promise,
+        concurrentLookup,
+        "descriptor close retry",
+      );
 
       const firstFailure = await firstLookup;
       expect(firstFailure).toBeInstanceOf(ProviderCleanupError);
@@ -442,6 +449,12 @@ it.each(["success", "failure"] as const)(
         expect(retryResult.cleanupIncomplete).toBe(false);
       }
     } finally {
+      initialClose.resolve();
+      retryGate.resolve();
+      await Promise.allSettled([
+        firstLookup,
+        ...(concurrentLookup === undefined ? [] : [concurrentLookup]),
+      ]);
       close.mockRestore();
       expect(await warmCache.close()).toEqual({ ok: true, value: null });
       await cache.close();
@@ -482,7 +495,11 @@ it("resolves a hash failure delivered after its retained owner was released", as
     .lookup(built.value.key)
     .catch((cause: unknown) => cause);
   try {
-    await failureRetained.promise;
+    await awaitAcknowledgement(
+      failureRetained.promise,
+      firstLookup,
+      "retained hash failure",
+    );
     expect(warmCache.hasPendingCleanup).toBe(true);
     expect(await warmCache.lookup(built.value.key)).toMatchObject({
       key: built.value.key,
@@ -1130,7 +1147,6 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
   let exports = 0;
   const cleanupStarted = deferred<void>();
   const releaseCleanup = deferred<void>();
-  onTestFinished(() => releaseCleanup.resolve());
   const cache = new KunaProjectCache(cacheRoot, {
     maxBytes: 64 * 1024 ** 2,
     launcher: async (options) => {
@@ -1156,27 +1172,46 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
     ...input,
     signal: first.signal,
   });
-  await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(1);
-  first.abort();
-  await firstBuild;
-  await cleanupStarted.promise;
-
-  // A retry for the same key starts while the first is still stopping.
   const second = new AbortController();
-  const secondBuild = cache.build({
-    installation,
-    ...input,
-    signal: second.signal,
-  });
-  await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(2);
-  second.abort();
-  await secondBuild;
-  releaseCleanup.resolve();
+  let secondBuild: ReturnType<typeof cache.build> | undefined;
+  let stopping: ReturnType<typeof cache.settled> | undefined;
+  try {
+    await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(1);
+    first.abort();
+    await firstBuild;
+    stopping = cache.settled(keyOf(installation, input));
+    await awaitAcknowledgement(
+      cleanupStarted.promise,
+      stopping,
+      "abandoned export cleanup",
+    );
 
-  expect(await cache.close()).toMatchObject({
-    ok: false,
-    error: { diagnostics: { reason: "first export unverified" } },
-  });
+    // A retry for the same key starts while the first is still stopping.
+    secondBuild = cache.build({
+      installation,
+      ...input,
+      signal: second.signal,
+    });
+    await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(2);
+    second.abort();
+    await secondBuild;
+    releaseCleanup.resolve();
+
+    expect(await cache.close()).toMatchObject({
+      ok: false,
+      error: { diagnostics: { reason: "first export unverified" } },
+    });
+  } finally {
+    first.abort();
+    second.abort();
+    releaseCleanup.resolve();
+    await Promise.allSettled([
+      firstBuild,
+      ...(secondBuild === undefined ? [] : [secondBuild]),
+      ...(stopping === undefined ? [] : [stopping]),
+    ]);
+    await cache.close();
+  }
 });
 
 it("removes its staging when publication itself fails", async () => {
