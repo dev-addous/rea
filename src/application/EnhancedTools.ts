@@ -17,6 +17,7 @@ import {
 } from "../contracts/enhancedInputs.js";
 import {
   AnalysisCancelledError,
+  AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
@@ -100,7 +101,38 @@ type BatchDecompileItem = {
   readonly status: "ok" | "error";
   readonly pseudocode?: string;
   readonly error?: ReturnType<typeof projectAnalysisError>;
+  /** Caveats of this item's own observation when it supplied no pseudocode. */
+  readonly limitations?: string[];
 };
+
+/**
+ * The item error for a provider answer without usable text. Null is the
+ * provider's observation that it has no pseudocode for this function, with
+ * any reason it reported in that observation's limitations; empty or
+ * non-text pseudocode is unreadable output.
+ */
+const missingPseudocodeError = (
+  providerId: string,
+  pseudocode: JsonValue,
+): AnalysisError =>
+  pseudocode === null
+    ? new AnalysisCapabilityUnavailableError(
+        providerId,
+        "procedure_pseudo_code",
+        "provider returned null pseudocode",
+        {
+          userMessage:
+            "The provider returned no pseudocode for this function; this item's limitations hold that observation's caveats, including any reason the provider reported.",
+          remediationAction:
+            "Read this item's limitations for the provider's reason before retrying; another provider may decompile this entry.",
+        },
+      )
+    : new AnalysisOutputError(
+        "procedure_pseudo_code",
+        typeof pseudocode === "string"
+          ? "provider returned empty pseudocode"
+          : "provider returned non-text pseudocode",
+      );
 
 const isAnalysisCancellation = (
   error: AnalysisError,
@@ -491,40 +523,39 @@ export class EnhancedTools {
   ): Promise<Result<BatchDecompileItem[], AnalysisCancelledError>> {
     const items: BatchDecompileItem[] = [];
     for (const { address, procedure, providerProcedure } of ready) {
-      const result = await this.#call(
+      const observed = await this.#observe(
         "procedure_pseudo_code",
         { procedure: providerProcedure },
         signal,
         procedure.status === "resolved" ? "provider" : undefined,
       );
-      if (!result.ok && isAnalysisCancellation(result.error))
-        return err(result.error);
-      const item: BatchDecompileItem = !result.ok
-        ? {
-            address,
-            procedure,
-            status: "error",
-            error: projectAnalysisError(result.error),
-          }
-        : typeof result.value !== "string" || result.value.length === 0
-          ? {
-              address,
-              procedure,
-              status: "error",
-              error: projectAnalysisError(
-                new AnalysisOutputError(
-                  "procedure_pseudo_code",
-                  "provider returned empty pseudocode",
-                ),
-              ),
-            }
-          : {
-              address,
-              procedure,
-              status: "ok",
-              pseudocode: result.value,
-            };
-      items.push(item);
+      if (!observed.ok) {
+        if (isAnalysisCancellation(observed.error)) return err(observed.error);
+        items.push({
+          address,
+          procedure,
+          status: "error",
+          error: projectAnalysisError(observed.error),
+        });
+        continue;
+      }
+      const { result: pseudocode, provider } = observed.value;
+      if (typeof pseudocode === "string" && pseudocode.length > 0) {
+        items.push({ address, procedure, status: "ok", pseudocode });
+        continue;
+      }
+      // Only this observation can explain its missing text, so its caveats
+      // stay with the item; the batch Evidence still aggregates them.
+      const limitations = [...new Set(observed.value.limitations)];
+      items.push({
+        address,
+        procedure,
+        status: "error",
+        error: projectAnalysisError(
+          missingPseudocodeError(provider.id, pseudocode),
+        ),
+        ...(limitations.length === 0 ? {} : { limitations }),
+      });
     }
     return ok(items);
   }
