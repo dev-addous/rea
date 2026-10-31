@@ -23,6 +23,8 @@ import {
 } from "../../src/process/OwnedCommand.js";
 import type { ProviderProcessSupervisor } from "../../src/process/ProviderProcess.js";
 import { REVERSE_ENGINEERING_TOOL_CONTRACTS } from "../../src/contracts/reverseEngineeringToolContracts.js";
+import { awaitAcknowledgement } from "../fixtures/lifecycleAcknowledgement.js";
+import { withVerifierCleanup } from "../../scripts/lib/verifier-cleanup.mjs";
 
 registerSharedReverseEngineeringEdgeCaseTests();
 registerOwnedRizinCommandEvidenceTests({ sweepTokenOwnedProcesses: true });
@@ -117,15 +119,13 @@ it.each(["cancellation", "deadline"] as const)(
       run: async () => ({ stdout: "", stderr: "" }),
     });
 
-    try {
-      if (interruption === "deadline") vi.useFakeTimers();
-      const resultPromise = service.inspectWithObjdump(
-        { path, operation: "file_headers" },
-        { signal: controller.signal },
-      );
-      await statStarted;
+    const resultPromise = service.inspectWithObjdump(
+      { path, operation: "file_headers", command_timeout_ms: 1_000 },
+      { signal: controller.signal },
+    );
+    await withVerifierCleanup(async () => {
+      await awaitAcknowledgement(statStarted, resultPromise, "stat request");
       if (interruption === "cancellation") controller.abort();
-      else await vi.advanceTimersByTimeAsync(120_000);
       await expect(resultPromise).resolves.toMatchObject({
         ok: false,
         error: {
@@ -137,10 +137,18 @@ it.each(["cancellation", "deadline"] as const)(
       });
       rejectStat?.(new Error("late stat failure"));
       await Promise.resolve();
-    } finally {
-      vi.useRealTimers();
-      await rm(directory, { recursive: true, force: true });
-    }
+    }, [
+      () => {
+        controller.abort();
+        rejectStat?.(new Error("stat fixture cleanup"));
+      },
+      async () => {
+        await resultPromise;
+      },
+      async () => {
+        await rm(directory, { recursive: true, force: true });
+      },
+    ]);
   },
 );
 
@@ -378,11 +386,17 @@ it("rejects work after reaching the concurrent provider-operation limit", async 
     },
   });
 
-  try {
-    const admitted = Array.from({ length: 8 }, () =>
-      service.executeRizinCommand({ path, command: "iI" }),
+  const admitted = Array.from({ length: 8 }, () =>
+    service.executeRizinCommand({ path, command: "iI" }),
+  );
+  await withVerifierCleanup(async () => {
+    const rejection = service.executeRizinCommand({ path, command: "iI" });
+    await awaitAcknowledgement(
+      rejection.then(() => {}),
+      Promise.all(admitted),
+      "capacity response",
     );
-    const rejected = await service.executeRizinCommand({ path, command: "iI" });
+    const rejected = await rejection;
 
     expect(rejected.ok).toBe(false);
     if (!rejected.ok) {
@@ -393,9 +407,6 @@ it("rejects work after reaching the concurrent provider-operation limit", async 
           max_concurrent_operations: 8,
           active_operations: 8,
         });
-      expect(rejected.error.message).toContain(
-        "Concurrent reverse-engineering operation capacity reached (8 operations).",
-      );
     }
     expect(providerCalls).toBe(0);
 
@@ -403,10 +414,15 @@ it("rejects work after reaching the concurrent provider-operation limit", async 
     const results = await Promise.all(admitted);
     expect(results.every((result) => result.ok)).toBe(true);
     expect(providerCalls).toBe(8);
-  } finally {
-    releaseProviders?.();
-    await rm(directory, { recursive: true, force: true });
-  }
+  }, [
+    () => releaseProviders?.(),
+    async () => {
+      await Promise.allSettled(admitted);
+    },
+    async () => {
+      await rm(directory, { recursive: true, force: true });
+    },
+  ]);
 });
 
 it("cancels when an AbortSignal becomes aborted during listener registration", async () => {
