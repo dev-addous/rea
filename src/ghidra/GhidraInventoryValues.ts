@@ -60,6 +60,8 @@ export const GHIDRA_NAMING_OPERATIONS = [
   "set_addresses_names",
 ] as const satisfies readonly GhidraInventoryOperation[];
 
+type GhidraNamingOperation = (typeof GHIDRA_NAMING_OPERATIONS)[number];
+
 /** One direct inventory operation implemented by the packaged Java bridge. */
 export type GhidraInventoryOperation =
   (typeof GHIDRA_INVENTORY_OPERATIONS)[number];
@@ -285,6 +287,96 @@ const containingProcedure = z.discriminatedUnion("found", [
     .strict(),
 ]);
 
+/**
+ * Bridge-owned reasons why Ghidra did not apply one requested analyst name.
+ * Batch reasons are decided from the names held before the batch.
+ */
+const ADDRESS_NAME_FAILURE_REASONS = [
+  "invalid_address",
+  "unmapped_address",
+  "invalid_name",
+  "conflicting_alias_names",
+  "duplicate_requested_name",
+  "name_held_by_selected_address",
+  "name_held_by_unselected_address",
+  "duplicate_name",
+  "readback_mismatch",
+] as const;
+/** Reasons explained by other addresses that request or hold the destination. */
+const relatedAddressReasons: ReadonlySet<string> = new Set([
+  "duplicate_requested_name",
+  "name_held_by_selected_address",
+  "name_held_by_unselected_address",
+]);
+/** Reasons a single-address edit can report; selection conflicts need a batch. */
+const singleAddressNameReasons: ReadonlySet<string> = new Set([
+  "invalid_name",
+  "name_held_by_unselected_address",
+  "duplicate_name",
+  "readback_mismatch",
+]);
+const addressNameFailure = z
+  .strictObject({
+    address: nativeAddressObservationSchema.nullable(),
+    reason: z.enum(ADDRESS_NAME_FAILURE_REASONS),
+    related_addresses: z.array(nativeAddressObservationSchema),
+  })
+  .superRefine((failure, context) => {
+    if ((failure.address === null) !== (failure.reason === "invalid_address"))
+      context.addIssue({
+        code: "custom",
+        path: ["address"],
+        message: "Only an unresolved address lacks its canonical address",
+      });
+    const related = failure.related_addresses;
+    const explainedByOthers = relatedAddressReasons.has(failure.reason);
+    if (
+      explainedByOthers === (related.length === 0) ||
+      new Set(related).size !== related.length ||
+      (failure.address !== null && related.includes(failure.address))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["related_addresses"],
+        message:
+          "Related addresses must be distinct other addresses explaining a name conflict",
+      });
+  });
+const addressNameOutcome = z
+  .strictObject({
+    applied: z.boolean(),
+    failure: addressNameFailure.nullable(),
+  })
+  .refine(
+    ({ applied, failure }) =>
+      failure === null
+        ? applied
+        : !applied && singleAddressNameReasons.has(failure.reason),
+    "A single name edit reports a supported reason exactly when it was not applied",
+  );
+const addressNamesOutcome = z
+  .strictObject({
+    results: jsonRecordSchema(z.boolean()),
+    failures: jsonRecordSchema(addressNameFailure),
+  })
+  .superRefine(({ results, failures }, context) => {
+    for (const [key, applied] of Object.entries(results))
+      if (applied === Object.hasOwn(failures, key))
+        context.addIssue({
+          code: "custom",
+          path: ["failures", key],
+          message:
+            "Exactly the addresses that were not applied report a reason",
+        });
+    for (const key of Object.keys(failures))
+      if (!Object.hasOwn(results, key))
+        context.addIssue({
+          code: "custom",
+          path: ["failures", key],
+          message: "A failure reason names an address outside the batch result",
+        });
+  });
+
 const byteMatch = byteSearchResultSchema.shape.matches.element;
 const canonicalByteMatch = byteMatch.safeExtend({
   address: nativeAddressObservationSchema,
@@ -334,9 +426,9 @@ const resultSchemas = {
   resolve_containing_procedure: containingProcedure,
   search_procedures: z.array(addressedItem),
   search_strings: z.array(addressedItem),
-  set_address_name: z.boolean(),
-  set_addresses_names: z.record(z.string(), z.boolean()),
-} satisfies Readonly<Record<GhidraInventoryOperation, z.ZodType>>;
+} satisfies Readonly<
+  Record<Exclude<GhidraInventoryOperation, GhidraNamingOperation>, z.ZodType>
+>;
 
 /** The format owner retains raw output only when projection omits reported facts. */
 export interface ParsedGhidraInventoryResult<Value = JsonValue> {
@@ -368,6 +460,27 @@ export function parseGhidraInventoryResult(
     return parsed.success
       ? ok({ value: normalizeNativeLoadImageObservation(parsed.data) })
       : err(inventoryOutputFailure(operation, parsed.error));
+  }
+  if (operation === "set_address_name") {
+    const parsed = addressNameOutcome.safeParse(value);
+    if (!parsed.success)
+      return err(inventoryOutputFailure(operation, parsed.error));
+    // The boolean answers the caller; a reported reason keeps the bridge reply.
+    return ok({
+      value: parsed.data.applied,
+      ...(parsed.data.failure === null ? {} : { rawResult: value }),
+    });
+  }
+  if (operation === "set_addresses_names") {
+    const parsed = addressNamesOutcome.safeParse(value);
+    if (!parsed.success)
+      return err(inventoryOutputFailure(operation, parsed.error));
+    return ok({
+      value: parsed.data.results,
+      ...(Object.keys(parsed.data.failures).length === 0
+        ? {}
+        : { rawResult: value }),
+    });
   }
   const parsed = resultSchemas[operation].safeParse(value);
   return parsed.success

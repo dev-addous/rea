@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -1936,51 +1937,97 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return symbol == null ? JsonNull.INSTANCE : GSON.toJsonTree(symbol.getName(true));
     }
 
-    // Analyst naming: a function entry renames the function, other addresses get a primary label.
-    private boolean applyAddressName(Address address, String name) throws Exception {
+    // Analyst naming: a function entry renames the function; another mapped
+    // address renames its non-dynamic primary label or receives a new global
+    // label. Resolve that destination without editing the program.
+    private AddressNameTarget addressNameTarget(Address address, String name)
+        throws ghidra.util.exception.InvalidInputException {
         if (!currentProgram.getMemory().contains(address))
             throw new RequestFailure("invalid_request", "Address is not mapped: " + canonicalAddress(address));
         validateAnnotationText(name, "name");
+        Symbol edited = editedNameSymbol(address);
+        return edited == null
+            ? new AddressNameTarget(address, currentProgram.getGlobalNamespace(), name)
+            : new AddressNameTarget(address, edited.getParentNamespace(), symbolLeafName(edited, name));
+    }
+
+    private Symbol editedNameSymbol(Address address) {
+        Function function = currentProgram.getFunctionManager().getFunctionAt(address);
+        if (function != null) return function.getSymbol();
+        Symbol primary = currentProgram.getSymbolTable().getPrimarySymbol(address);
+        return primary == null || primary.isDynamic() ? null : primary;
+    }
+
+    // Other addresses whose label or function symbol holds the destination.
+    private List<Address> addressNameHolders(AddressNameTarget target) {
+        Set<Address> holders = new TreeSet<>();
+        for (Symbol symbol : currentProgram.getSymbolTable().getLabelOrFunctionSymbols(target.leaf(), target.namespace())) {
+            if (!target.address().equals(symbol.getAddress())) holders.add(symbol.getAddress());
+        }
+        return List.copyOf(holders);
+    }
+
+    // Apply one resolved destination in its own transaction. Null means the
+    // edit committed with matching primary-symbol readback.
+    private AddressNameFailure applyAddressName(AddressNameTarget target) {
+        List<Address> holders = addressNameHolders(target);
+        if (!holders.isEmpty()) return new AddressNameFailure("name_held_by_unselected_address", holders);
+        Address address = target.address();
         int transaction = currentProgram.startTransaction("REA address name");
         boolean commit = false;
         try {
             Function function = currentProgram.getFunctionManager().getFunctionAt(address);
-            SymbolTable table = currentProgram.getSymbolTable();
-            Symbol primary = function == null ? table.getPrimarySymbol(address) : function.getSymbol();
-            Namespace namespace = primary == null
-                ? currentProgram.getGlobalNamespace()
-                : primary.getParentNamespace();
-            String expected = primary == null ? name : symbolLeafName(primary, name);
-            for (Symbol symbol : table.getLabelOrFunctionSymbols(expected, namespace)) {
-                if (!address.equals(symbol.getAddress())) return false;
-            }
+            Symbol edited = editedNameSymbol(address);
             if (function != null) {
-                function.setName(expected, SourceType.USER_DEFINED);
+                function.setName(target.leaf(), SourceType.USER_DEFINED);
+            } else if (edited != null) {
+                edited.setName(target.leaf(), SourceType.USER_DEFINED);
             } else {
-                if (primary != null && !primary.isDynamic()) {
-                    primary.setName(expected, SourceType.USER_DEFINED);
-                } else {
-                    Symbol created = table.createLabel(address, expected, SourceType.USER_DEFINED);
-                    created.setPrimary();
-                }
+                Symbol created = currentProgram.getSymbolTable().createLabel(address, target.leaf(), SourceType.USER_DEFINED);
+                created.setPrimary();
             }
             invalidateAnalysisCaches();
             Symbol readback = currentProgram.getSymbolTable().getPrimarySymbol(address);
-            commit = readback != null && expected.equals(readback.getName());
-            return commit;
+            commit = readback != null && target.leaf().equals(readback.getName());
+            return commit ? null : new AddressNameFailure("readback_mismatch", List.of());
         }
-        catch (ghidra.util.exception.InvalidInputException | ghidra.util.exception.DuplicateNameException exception) {
-            return false;
+        catch (ghidra.util.exception.InvalidInputException exception) {
+            return new AddressNameFailure("invalid_name", List.of());
+        }
+        catch (ghidra.util.exception.DuplicateNameException exception) {
+            return new AddressNameFailure("duplicate_name", List.of());
         }
         finally {
             currentProgram.endTransaction(transaction, commit);
         }
     }
 
+    private static JsonObject addressNameFailure(Address address, AddressNameFailure failure) {
+        JsonObject value = new JsonObject();
+        if (address == null) value.add("address", JsonNull.INSTANCE);
+        else value.addProperty("address", canonicalAddress(address));
+        value.addProperty("reason", failure.reason());
+        JsonArray related = new JsonArray();
+        for (Address item : failure.related()) related.add(canonicalAddress(item));
+        value.add("related_addresses", related);
+        return value;
+    }
+
     private JsonElement setAddressName(JsonObject params) throws Exception {
         requireKeys(params, Set.of("document", "address", "name"));
         requireDocument(params);
-        return GSON.toJsonTree(applyAddressName(requireAddress(params, "address"), requireString(params, "name")));
+        Address address = requireAddress(params, "address");
+        AddressNameFailure failure;
+        try {
+            failure = applyAddressName(addressNameTarget(address, requireString(params, "name")));
+        }
+        catch (ghidra.util.exception.InvalidInputException exception) {
+            failure = new AddressNameFailure("invalid_name", List.of());
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("applied", failure == null);
+        result.add("failure", failure == null ? JsonNull.INSTANCE : addressNameFailure(address, failure));
+        return result;
     }
 
     private JsonElement setAddressesNames(JsonObject params) throws Exception {
@@ -1988,34 +2035,84 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireDocument(params);
         if (!params.has("names") || !params.get("names").isJsonObject())
             throw new RequestFailure("invalid_request", "names must be an object of address -> name");
+        // Every outcome is decided from the names held before this batch, so
+        // object member order never selects which address receives a name.
+        Map<String, Address> addressesByKey = new LinkedHashMap<>();
         Map<Address, List<AddressNameRequest>> requestsByAddress = new LinkedHashMap<>();
-        JsonObject result = new JsonObject();
         for (Map.Entry<String, JsonElement> entry : params.getAsJsonObject("names").entrySet()) {
+            Address address = null;
             try {
-                Address address = parseReaAddress(entry.getKey());
+                address = parseReaAddress(entry.getKey());
                 requestsByAddress.computeIfAbsent(address, ignored -> new ArrayList<>())
                     .add(new AddressNameRequest(entry.getKey(), address, entry.getValue().getAsString()));
             }
             catch (RequestFailure failure) {
-                result.addProperty(entry.getKey(), false);
+                // The key keeps its own invalid_address outcome below.
+            }
+            addressesByKey.put(entry.getKey(), address);
+        }
+        Map<Address, AddressNameFailure> failures = new HashMap<>();
+        Map<Address, AddressNameTarget> targets = new LinkedHashMap<>();
+        for (Map.Entry<Address, List<AddressNameRequest>> selected : requestsByAddress.entrySet()) {
+            Address address = selected.getKey();
+            String name = selected.getValue().get(0).name;
+            if (selected.getValue().stream().anyMatch(request -> !request.name.equals(name))) {
+                failures.put(address, new AddressNameFailure("conflicting_alias_names", List.of()));
+                continue;
+            }
+            if (!currentProgram.getMemory().contains(address)) {
+                failures.put(address, new AddressNameFailure("unmapped_address", List.of()));
+                continue;
+            }
+            try {
+                targets.put(address, addressNameTarget(address, name));
+            }
+            catch (RequestFailure | ghidra.util.exception.InvalidInputException exception) {
+                failures.put(address, new AddressNameFailure("invalid_name", List.of()));
             }
         }
-        for (List<AddressNameRequest> requests : requestsByAddress.values()) {
-            String name = requests.get(0).name;
-            boolean conflictingAliasNames = requests.stream()
-                .anyMatch(request -> !request.name.equals(name));
-            boolean success = false;
-            if (!conflictingAliasNames) {
-                try {
-                    success = applyAddressName(requests.get(0).address, name);
-                }
-                catch (RequestFailure failure) {
-                    // Keep per-address failures in the existing batch result shape.
-                }
+        // Reject competing destinations and names that another selected
+        // address holds instead of letting application order pick a winner.
+        Map<AddressNameDestination, List<Address>> requesters = new HashMap<>();
+        for (AddressNameTarget target : targets.values())
+            requesters.computeIfAbsent(target.destination(), ignored -> new ArrayList<>()).add(target.address());
+        for (AddressNameTarget target : targets.values()) {
+            List<Address> competing = requesters.get(target.destination()).stream()
+                .filter(address -> !address.equals(target.address()))
+                .sorted()
+                .toList();
+            if (!competing.isEmpty()) {
+                failures.put(target.address(), new AddressNameFailure("duplicate_requested_name", competing));
+                continue;
             }
-            for (AddressNameRequest request : requests)
-                result.addProperty(request.inputAddress, success);
+            List<Address> holders = addressNameHolders(target);
+            if (holders.isEmpty()) continue;
+            boolean unselected = holders.stream().anyMatch(holder -> !requestsByAddress.containsKey(holder));
+            failures.put(target.address(), new AddressNameFailure(
+                unselected ? "name_held_by_unselected_address" : "name_held_by_selected_address",
+                holders
+            ));
         }
+        // The remaining edits have distinct destinations that no other selected
+        // address holds, so their results do not depend on application order.
+        for (AddressNameTarget target : targets.values()) {
+            if (failures.containsKey(target.address())) continue;
+            AddressNameFailure failure = applyAddressName(target);
+            if (failure != null) failures.put(target.address(), failure);
+        }
+        JsonObject results = new JsonObject();
+        JsonObject failed = new JsonObject();
+        for (Map.Entry<String, Address> entry : addressesByKey.entrySet()) {
+            Address address = entry.getValue();
+            AddressNameFailure failure = address == null
+                ? new AddressNameFailure("invalid_address", List.of())
+                : failures.get(address);
+            results.addProperty(entry.getKey(), failure == null);
+            if (failure != null) failed.add(entry.getKey(), addressNameFailure(address, failure));
+        }
+        JsonObject result = new JsonObject();
+        result.add("results", results);
+        result.add("failures", failed);
         return result;
     }
 
@@ -4986,6 +5083,13 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private record InventoryItem(Address address, String value, JsonObject facts, JsonObject symbol) {}
     private record AddressNameRequest(String inputAddress, Address address, String name) {}
+    private record AddressNameDestination(long namespace, String leaf) {}
+    private record AddressNameTarget(Address address, Namespace namespace, String leaf) {
+        AddressNameDestination destination() {
+            return new AddressNameDestination(namespace.getID(), leaf);
+        }
+    }
+    private record AddressNameFailure(String reason, List<Address> related) {}
     private record FunctionEntry(Function function, InventoryItem item) {}
     private record FunctionAnalysisObservation(JsonObject dossier, List<String> limitations, JsonObject relationshipCoverage, boolean decompilerFailed) {}
     private record CallBoundaryObservation(List<String> limitations, Integer unrepresentedCalleeCalls, JsonArray unresolvedCalls) {}

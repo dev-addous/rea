@@ -136,6 +136,21 @@ export async function verifyGhidraNamespaceAnnotations({
     }
     await verifyAddressNames(call, [entries[0], entries[2]], "function");
     await verifyAddressNames(call, globals, "label");
+    // Equal leaf names in different namespaces are distinct destinations.
+    const shared = "rea_namespace_shared";
+    assert.deepEqual(
+      await call("set_addresses_names", {
+        names: Object.fromEntries(
+          entries.map(({ address }) => [address, shared]),
+        ),
+      }),
+      Object.fromEntries(entries.map(({ address }) => [address, true])),
+    );
+    for (const { namespace, address } of entries)
+      assert.equal(
+        await call("address_name", { address }),
+        `${namespace}::${shared}`,
+      );
     for (const { namespace, address } of entries) {
       assert.equal(
         await call("set_address_name", {
@@ -231,32 +246,90 @@ async function verifyDuplicateAddressNames(call, procedures, names) {
       "A rejected duplicate leaves the other address unchanged",
     );
 
+    const readback = async (ownerName, message) => {
+      assert.equal(
+        await call("address_name", { address: owner.address }),
+        ownerName,
+        message,
+      );
+      assert.equal(
+        await call("address_name", { address: duplicate.address }),
+        duplicate.original,
+        message,
+      );
+    };
+    // Object member order is not an ordering choice: each batch is decided
+    // from the names held before it, so both orders must agree.
     const batchName = `rea_batch_duplicate_${kind}`;
+    const moved = `${name}_moved`;
+    for (const [requested, expected, ownerName, message] of [
+      [
+        { [owner.address]: batchName, [duplicate.address]: batchName },
+        { [owner.address]: false, [duplicate.address]: false },
+        name,
+        "Competing requests for one name apply neither address",
+      ],
+      [
+        { [owner.address]: duplicate.original, [duplicate.address]: name },
+        { [owner.address]: false, [duplicate.address]: false },
+        name,
+        "A swap between selected addresses is not ordered implicitly",
+      ],
+      [
+        { [duplicate.address]: name, [owner.address]: moved },
+        { [owner.address]: true, [duplicate.address]: false },
+        moved,
+        "A name held by another selected address is not taken by member order",
+      ],
+      [
+        { [duplicate.address]: name },
+        { [duplicate.address]: false },
+        name,
+        "A name held by an unselected address is not moved",
+      ],
+    ]) {
+      for (const ordered of [
+        requested,
+        Object.fromEntries(Object.entries(requested).reverse()),
+      ]) {
+        assert.deepEqual(
+          await call("set_addresses_names", { names: ordered }),
+          expected,
+          message,
+        );
+        await readback(ownerName, message);
+        if (ownerName !== name)
+          assert.equal(
+            await call("set_address_name", { address: owner.address, name }),
+            true,
+          );
+      }
+    }
     assert.deepEqual(
-      await call("set_addresses_names", {
-        names: {
-          [owner.address]: batchName,
-          [duplicate.address]: batchName,
-        },
-      }),
-      { [owner.address]: true, [duplicate.address]: false },
+      (await call("list_names")).filter((item) => item.value === batchName),
+      [],
+      "A rejected competing name has no owner",
+    );
+    // An explicit later call may take a name released by an earlier one.
+    assert.equal(
+      await call("set_address_name", { address: owner.address, name: moved }),
+      true,
     );
     assert.equal(
-      await call("address_name", { address: owner.address }),
-      batchName,
+      await call("set_address_name", { address: duplicate.address, name }),
+      true,
     );
-    assert.equal(
-      await call("address_name", { address: duplicate.address }),
-      duplicate.original,
-      "A failed batch member rolls back only its own address",
-    );
-    const owners = (await call("list_names")).filter(
-      (item) => item.value === batchName && item.symbol.primary,
-    );
-    assert.deepEqual(
-      owners.map(({ address }) => address),
-      [owner.address],
-    );
+    // Ghidra symbol names are case-sensitive, so case variants do not compete.
+    const cased = {
+      [owner.address]: `${batchName}_Case`,
+      [duplicate.address]: `${batchName}_case`,
+    };
+    assert.deepEqual(await call("set_addresses_names", { names: cased }), {
+      [owner.address]: true,
+      [duplicate.address]: true,
+    });
+    for (const [address, expected] of Object.entries(cased))
+      assert.equal(await call("address_name", { address }), expected);
   }
 }
 
