@@ -338,6 +338,48 @@ const assertSummaryDelivery = async (
   );
 };
 
+const assertOccurrencePages = async (
+  readView: Awaited<ReturnType<typeof createInventoryViewReader>>,
+  occurrences: z.output<typeof artifactInventoryResultSchema>["occurrences"],
+) => {
+  const paths = ["files/0.txt", "files/519.txt", "missing.txt"];
+  const matched = occurrences.filter((row) => paths.includes(row.logical_path));
+  expect(matched.map((row) => row.logical_path)).toEqual(paths.slice(0, 2));
+  const selected = await readView({
+    kind: "inventory",
+    collection: "occurrences",
+    logical_paths: paths,
+    offset: 0,
+    limit: 1,
+  });
+  expect(selected.result).toMatchObject({
+    kind: "inventory",
+    source_complete: true,
+    items: matched.slice(0, 1),
+    coverage: { examined: 1, total: 2, next_offset: 1, exhausted: false },
+  });
+  const next = await readView({
+    kind: "inventory",
+    collection: "occurrences",
+    logical_paths: paths,
+    offset: 1,
+    limit: 1,
+  });
+  expect(next.result).toMatchObject({
+    items: matched.slice(1, 2),
+    coverage: { examined: 1, next_offset: null, exhausted: true },
+  });
+  const none = await readView({
+    kind: "inventory",
+    collection: "occurrences",
+    logical_paths: [],
+  });
+  expect(none.result).toMatchObject({
+    items: [],
+    coverage: { total: 0, exhausted: true },
+  });
+};
+
 it.each(["full", "compact"] as const)(
   "keeps complete ZIP output and reads retained inventory views after the source is removed (%s)",
   async (profile) => {
@@ -417,41 +459,7 @@ it.each(["full", "compact"] as const)(
         },
       });
       expect(summary.evidence.evidence_links).toEqual([parent.evidence_id]);
-      const paths = ["files/0.txt", "files/519.txt", "missing.txt"];
-      const selected = await readView({
-        kind: "inventory",
-        collection: "occurrences",
-        logical_paths: paths,
-        offset: 0,
-        limit: 1,
-      });
-      expect(selected.result).toMatchObject({
-        kind: "inventory",
-        source_complete: true,
-        items: graph.occurrences
-          .filter((row) => paths.includes(row.logical_path))
-          .slice(0, 1),
-        coverage: { examined: 1, total: 2, next_offset: 1, exhausted: false },
-      });
-      const next = await readView({
-        kind: "inventory",
-        collection: "occurrences",
-        logical_paths: paths,
-        offset: 1,
-        limit: 1,
-      });
-      expect(next.result).toMatchObject({
-        coverage: { examined: 1, next_offset: null, exhausted: true },
-      });
-      const none = await readView({
-        kind: "inventory",
-        collection: "occurrences",
-        logical_paths: [],
-      });
-      expect(none.result).toMatchObject({
-        items: [],
-        coverage: { total: 0, exhausted: true },
-      });
+      await assertOccurrencePages(readView, graph.occurrences);
 
       const partial = createEvidence(
         { path: archive, sha256: graph.manifest.root_sha256, format: "zip" },
