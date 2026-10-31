@@ -692,7 +692,7 @@ describe("passive V8 Inspector evidence", () => {
     });
     if (!reconciled.ok) throw reconciled.error;
     const result = javascriptRuntimeReconciliationResultSchema.parse(
-      reconciled.value.normalized_result,
+      reconciled.value.evidence.normalized_result,
     );
     expect(result.runtime_captures[0]?.kind).toBe("v8-inspector");
     expect(result.summary.runtime_scripts).toBe(1);
@@ -753,7 +753,7 @@ describe("passive V8 Inspector evidence", () => {
     });
     if (!reconciled.ok) throw reconciled.error;
     const result = javascriptRuntimeReconciliationResultSchema.parse(
-      reconciled.value.normalized_result,
+      reconciled.value.evidence.normalized_result,
     );
     expect(result.summary.runtime_scripts).toBe(2);
     expect(result.reconciliations).toContainEqual(
@@ -848,7 +848,7 @@ test("keeps Inspector parse failures separate and preserves file URL script iden
     });
     if (!reconciled.ok) throw reconciled.error;
     const result = javascriptRuntimeReconciliationResultSchema.parse(
-      reconciled.value.normalized_result,
+      reconciled.value.evidence.normalized_result,
     );
     const runtimeScripts = result.graph.nodes.filter(
       (node) => node.kind === "runtime-script-instance",
