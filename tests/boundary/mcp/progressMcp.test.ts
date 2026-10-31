@@ -13,6 +13,7 @@ import { AnalysisCancelledError } from "../../../src/domain/analysisErrorCore.js
 import { err, ok } from "../../../src/domain/result.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
+import { awaitAcknowledgement } from "../../fixtures/lifecycleAcknowledgement.js";
 
 describe("ordinary MCP progress and cancellation", () => {
   it("advances MCP progress when provider waiting does not advance completed work", async () => {
@@ -148,7 +149,7 @@ describe("ordinary MCP progress and cancellation", () => {
         { name: "current_address", arguments: {} },
         { signal: controller.signal },
       );
-      await providerStarted;
+      await awaitAcknowledgement(providerStarted, request, "provider request");
       controller.abort();
       await expect(request).rejects.toThrow(/abort/iu);
       await expect.poll(() => providerObservedCancellation).toBe(true);

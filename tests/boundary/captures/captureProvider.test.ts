@@ -638,8 +638,14 @@ it("discovers installed protocols and field definitions without a capture", asyn
       {
         records: [
           {
+            kind: "field",
+            name: "Other Vendor",
             abbreviation: "usb.idVendor",
             field_type: "FT_UINT32",
+            parent_protocol: "usb",
+            display_base: "BASE_HEX",
+            bitmask: "0x0",
+            description: "Second registration",
             source_line: 3,
           },
         ],
