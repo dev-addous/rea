@@ -1,5 +1,6 @@
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { EnhancedTools } from "../../../src/application/EnhancedTools.js";
 import { connectGhidraMcp, sessionEvidence } from "./ghidraMcpHarness.js";
 import { functionDossierSchema } from "../../../src/domain/native/functionDossier.js";
@@ -334,23 +335,27 @@ const connectNamingMcp = async (name: string) => {
   return { harness, requests, bridge, call };
 };
 
-const heldFailure = {
-  address: "0x1000",
-  reason: "name_held_by_unselected_address",
-  related_addresses: ["0x3000"],
-};
-const duplicateFailure = {
-  address: "0x1000",
-  reason: "duplicate_requested_name",
-  related_addresses: ["0x2000"],
-};
+const failure = (
+  address: string | null,
+  reason: string,
+  conflict: number | null = null,
+) => ({ address, reason, conflict });
+const contested = (
+  name: string,
+  requestedBy: readonly string[],
+  heldBy: readonly string[] = [],
+) => ({ namespace: null, name, requested_by: requestedBy, held_by: heldBy });
 
 it("routes address naming to Ghidra with compact results and retained failure reasons", async () => {
   const { harness, requests, bridge, call } = await connectNamingMcp(
     "ghidra-address-naming",
   );
   try {
-    bridge.output = { applied: true, failure: null };
+    bridge.output = {
+      results: { "0x1000": true },
+      failures: {},
+      conflicts: [],
+    };
     const single = await call("set_address_name", {
       address: "0x1000",
       name: "fixture_entry",
@@ -360,7 +365,13 @@ it("routes address naming to Ghidra with compact results and retained failure re
       normalized_result: true,
       raw_result: null,
     });
-    bridge.output = { applied: false, failure: heldFailure };
+    const held = {
+      failures: {
+        "0x1000": failure("0x1000", "name_held_by_unselected_address", 0),
+      },
+      conflicts: [contested("g_taken", ["0x1000"], ["0x3000"])],
+    };
+    bridge.output = { results: { "0x1000": false }, ...held };
     const taken = await call("set_address_name", {
       address: "0x1000",
       name: "g_taken",
@@ -368,43 +379,34 @@ it("routes address naming to Ghidra with compact results and retained failure re
     expect(taken.isError).not.toBe(true);
     expect(taken.structuredContent).toMatchObject({
       normalized_result: false,
-      raw_result: bridge.output,
+      raw_result: held,
     });
 
     // Bridge reply for three competing requests, a dependent request, the
     // independent rename of the address holding its name before the batch,
     // and an address space the target does not define.
-    const competing = (address: string, ...others: string[]) => ({
-      address,
-      reason: "duplicate_requested_name",
-      related_addresses: others,
-    });
-    const decided = {
-      results: {
-        "0x1000": false,
-        "0x2000": false,
-        "0x3000": false,
-        "0x4000": true,
-        "0x5000": false,
-        "nospace:0x10": false,
-      },
-      failures: {
-        "0x1000": competing("0x1000", "0x2000", "0x3000"),
-        "0x2000": competing("0x2000", "0x1000", "0x3000"),
-        "0x3000": competing("0x3000", "0x1000", "0x2000"),
-        "0x5000": {
-          address: "0x5000",
-          reason: "name_held_by_selected_address",
-          related_addresses: ["0x4000"],
-        },
-        "nospace:0x10": {
-          address: null,
-          reason: "invalid_address",
-          related_addresses: [],
-        },
-      },
+    const results = {
+      "0x1000": false,
+      "0x2000": false,
+      "0x3000": false,
+      "0x4000": true,
+      "0x5000": false,
+      "nospace:0x10": false,
     };
-    bridge.output = decided;
+    const facts = {
+      failures: {
+        "0x1000": failure("0x1000", "duplicate_requested_name", 0),
+        "0x2000": failure("0x2000", "duplicate_requested_name", 0),
+        "0x3000": failure("0x3000", "duplicate_requested_name", 0),
+        "0x5000": failure("0x5000", "name_held_by_selected_address", 1),
+        "nospace:0x10": failure(null, "invalid_address"),
+      },
+      conflicts: [
+        contested("g_shared", ["0x1000", "0x2000", "0x3000"]),
+        contested("g_held_by_4000", ["0x5000"], ["0x4000"]),
+      ],
+    };
+    bridge.output = { results, ...facts };
     const names = {
       "0x1000": "g_shared",
       "0x2000": "g_shared",
@@ -421,8 +423,9 @@ it("routes address naming to Ghidra with compact results and retained failure re
       batches.push(sessionEvidence(harness.session, reply.structuredContent));
     }
     for (const evidence of batches) {
-      expect(evidence.normalized_result).toEqual(decided.results);
-      expect(evidence.raw_result).toEqual(decided);
+      expect(evidence.normalized_result).toEqual(results);
+      // Failure facts are retained without a second copy of the booleans.
+      expect(evidence.raw_result).toEqual(facts);
       expect(evidence.parameters).toEqual({ names });
     }
     // Equal canonical parameters and outcomes give one Evidence identity.
@@ -434,7 +437,11 @@ it("routes address naming to Ghidra with compact results and retained failure re
         .map((input) => Object.keys(jsonObjectSchema.parse(input.names))),
     ).toEqual([Object.keys(names), Object.keys(reversed)]);
 
-    bridge.output = { results: { "0x1000": true }, failures: {} };
+    bridge.output = {
+      results: { "0x1000": true },
+      failures: {},
+      conflicts: [],
+    };
     const applied = await call("set_addresses_names", {
       names: { "0x1000": "fixture_entry" },
     });
@@ -455,45 +462,114 @@ it("routes address naming to Ghidra with compact results and retained failure re
   }
 });
 
+it("retains one large contested destination in linear Evidence", async () => {
+  const { harness, bridge, call } = await connectNamingMcp(
+    "ghidra-large-naming-conflict",
+  );
+  try {
+    const sizes = [];
+    // The largest batch fits the default 1,024-element MCP input allowance.
+    for (const count of [250, 1_000]) {
+      const addresses = Array.from(
+        { length: count },
+        (_, index) => `0x${(0x100000 + index * 8).toString(16)}`,
+      );
+      bridge.output = {
+        results: Object.fromEntries(addresses.map((key) => [key, false])),
+        failures: Object.fromEntries(
+          addresses.map((key) => [
+            key,
+            failure(key, "duplicate_requested_name", 0),
+          ]),
+        ),
+        conflicts: [contested("g_shared", addresses)],
+      };
+      const reply = await call("set_addresses_names", {
+        names: Object.fromEntries(addresses.map((key) => [key, "g_shared"])),
+      });
+      expect(reply.isError).not.toBe(true);
+      const evidence = sessionEvidence(
+        harness.session,
+        reply.structuredContent,
+      );
+      const facts = z
+        .object({
+          conflicts: z.array(z.object({ requested_by: z.array(z.string()) })),
+        })
+        .parse(evidence.raw_result);
+      expect(facts.conflicts).toHaveLength(1);
+      expect(facts.conflicts[0]!.requested_by).toEqual(addresses);
+      sizes.push(JSON.stringify(evidence.raw_result).length / count);
+    }
+    // Bytes per conflicting address stay constant as the group grows.
+    expect(sizes[1]! / sizes[0]!).toBeLessThan(1.05);
+    expect(sizes[1]!).toBeLessThan(120);
+  } finally {
+    await harness.close();
+  }
+});
+
 it("rejects Ghidra naming replies whose outcomes and reasons disagree", async () => {
   const { harness, requests, bridge, call } = await connectNamingMcp(
     "ghidra-malformed-naming",
   );
-  const batch = (
+  const duplicate = failure("0x1000", "duplicate_requested_name", 0);
+  const pair = contested("g_shared", ["0x1000", "0x2000"]);
+  const reply = (
+    tool: "set_address_name" | "set_addresses_names",
     results: Record<string, boolean>,
     failures: Record<string, unknown>,
-  ) => ["set_addresses_names", { results, failures }] as const;
+    conflicts: readonly unknown[] = [],
+  ) => [tool, { results, failures, conflicts }] as const;
   const cases = [
     ["set_address_name", true],
-    ["set_address_name", { applied: true, failure: heldFailure }],
     ["set_address_name", { applied: false, failure: null }],
-    ["set_address_name", { applied: false, failure: duplicateFailure }],
     ["set_addresses_names", { "0x1000": false }],
-    batch({ "0x1000": false, "0x2000": true }, {}),
-    batch(
+    reply("set_addresses_names", { "0x1000": false, "0x2000": true }, {}),
+    // A conflict reason without its shared destination, or one it is not in.
+    reply("set_addresses_names", { "0x1000": false }, { "0x1000": duplicate }),
+    reply("set_addresses_names", { "0x1000": false }, { "0x1000": duplicate }, [
+      contested("g_shared", ["0x2000", "0x3000"]),
+    ]),
+    // A requesting address omitted from the failures.
+    reply("set_addresses_names", { "0x1000": false }, { "0x1000": duplicate }, [
+      pair,
+    ]),
+    // A held reason for a destination nobody else holds.
+    reply(
+      "set_addresses_names",
       { "0x1000": false },
-      { "0x1000": { ...duplicateFailure, related_addresses: [] } },
+      { "0x1000": failure("0x1000", "name_held_by_unselected_address", 0) },
+      [contested("g_free", ["0x1000"])],
     ),
-    batch(
+    reply(
+      "set_addresses_names",
       { "0x1000": false },
-      { "0x1000": { ...duplicateFailure, related_addresses: ["0x1000"] } },
+      { "0x1000": failure("0x1000", "invalid_name", 0) },
+      [contested("g_free", ["0x1000"], ["0x3000"])],
     ),
-    batch(
-      { "0x1000": false },
-      { "0x1000": duplicateFailure, "0x2000": duplicateFailure },
+    // A single edit cannot report a batch-only reason or several keys.
+    reply(
+      "set_address_name",
+      { "0x1000": false, "0x2000": false },
+      {
+        "0x1000": duplicate,
+        "0x2000": failure("0x2000", "duplicate_requested_name", 0),
+      },
+      [pair],
     ),
   ] as const;
   try {
     for (const [tool, malformed] of cases) {
       bridge.output = malformed;
-      const reply = await call(
+      const response = await call(
         tool,
         tool === "set_address_name"
           ? { address: "0x1000", name: "fixture_entry" }
           : { names: { "0x1000": "fixture_entry" } },
       );
-      expect(reply.isError, JSON.stringify(malformed)).toBe(true);
-      expect(parseMcpToolError(reply)).toMatchObject({
+      expect(response.isError, JSON.stringify(malformed)).toBe(true);
+      expect(parseMcpToolError(response)).toMatchObject({
         error: { code: "unreadable_output" },
       });
     }

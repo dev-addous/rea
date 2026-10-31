@@ -302,24 +302,29 @@ const ADDRESS_NAME_FAILURE_REASONS = [
   "duplicate_name",
   "readback_mismatch",
 ] as const;
-/** Reasons explained by other addresses that request or hold the destination. */
-const relatedAddressReasons: ReadonlySet<string> = new Set([
+type AddressNameFailureReason = (typeof ADDRESS_NAME_FAILURE_REASONS)[number];
+/** Reasons explained by one shared contested-destination record. */
+const conflictReasons: ReadonlySet<AddressNameFailureReason> = new Set([
   "duplicate_requested_name",
   "name_held_by_selected_address",
   "name_held_by_unselected_address",
 ]);
 /** Reasons a single-address edit can report; selection conflicts need a batch. */
-const singleAddressNameReasons: ReadonlySet<string> = new Set([
-  "invalid_name",
-  "name_held_by_unselected_address",
-  "duplicate_name",
-  "readback_mismatch",
-]);
+const singleAddressNameReasons: ReadonlySet<AddressNameFailureReason> = new Set(
+  [
+    "invalid_name",
+    "name_held_by_unselected_address",
+    "duplicate_name",
+    "readback_mismatch",
+  ],
+);
+const distinct = (values: readonly string[]) =>
+  new Set(values).size === values.length;
 const addressNameFailure = z
   .strictObject({
     address: nativeAddressObservationSchema.nullable(),
     reason: z.enum(ADDRESS_NAME_FAILURE_REASONS),
-    related_addresses: z.array(nativeAddressObservationSchema),
+    conflict: z.int().min(0).nullable(),
   })
   .superRefine((failure, context) => {
     if ((failure.address === null) !== (failure.reason === "invalid_address"))
@@ -328,38 +333,37 @@ const addressNameFailure = z
         path: ["address"],
         message: "Only an unresolved address lacks its canonical address",
       });
-    const related = failure.related_addresses;
-    const explainedByOthers = relatedAddressReasons.has(failure.reason);
-    if (
-      explainedByOthers === (related.length === 0) ||
-      new Set(related).size !== related.length ||
-      (failure.address !== null && related.includes(failure.address))
-    )
+    if ((failure.conflict === null) === conflictReasons.has(failure.reason))
       context.addIssue({
         code: "custom",
-        path: ["related_addresses"],
+        path: ["conflict"],
         message:
-          "Related addresses must be distinct other addresses explaining a name conflict",
+          "Exactly the conflict reasons refer to a contested destination",
       });
   });
-const addressNameOutcome = z
-  .strictObject({
-    applied: z.boolean(),
-    failure: addressNameFailure.nullable(),
-  })
-  .refine(
-    ({ applied, failure }) =>
-      failure === null
-        ? applied
-        : !applied && singleAddressNameReasons.has(failure.reason),
-    "A single name edit reports a supported reason exactly when it was not applied",
-  );
-const addressNamesOutcome = z
+/** One contested destination, shared by every address that requested it. */
+const addressNameConflict = z.strictObject({
+  namespace: z.string().min(1).nullable(),
+  name: z.string().min(1),
+  requested_by: z
+    .array(nativeAddressObservationSchema)
+    .min(1)
+    .refine(distinct, "Requesting addresses are distinct"),
+  held_by: z
+    .array(nativeAddressObservationSchema)
+    .refine(distinct, "Holding addresses are distinct"),
+});
+/**
+ * Per-key booleans, reasons for failed keys and each contested destination
+ * once, so reply size grows linearly with the request and its holders.
+ */
+const addressNameOutcomes = z
   .strictObject({
     results: jsonRecordSchema(z.boolean()),
     failures: jsonRecordSchema(addressNameFailure),
+    conflicts: z.array(addressNameConflict),
   })
-  .superRefine(({ results, failures }, context) => {
+  .superRefine(({ results, failures, conflicts }, context) => {
     for (const [key, applied] of Object.entries(results))
       if (applied === Object.hasOwn(failures, key))
         context.addIssue({
@@ -368,14 +372,68 @@ const addressNamesOutcome = z
           message:
             "Exactly the addresses that were not applied report a reason",
         });
-    for (const key of Object.keys(failures))
+    // Index each destination once so validation stays linear in reply size.
+    const contested = conflicts.map((conflict) => ({
+      members: new Set(conflict.requested_by),
+      reasons:
+        conflict.requested_by.length > 1
+          ? ["duplicate_requested_name"]
+          : conflict.held_by.some(
+                (holder) => holder !== conflict.requested_by[0],
+              )
+            ? [
+                "name_held_by_selected_address",
+                "name_held_by_unselected_address",
+              ]
+            : [],
+      referenced: new Set<string>(),
+    }));
+    for (const [key, failure] of Object.entries(failures)) {
       if (!Object.hasOwn(results, key))
         context.addIssue({
           code: "custom",
           path: ["failures", key],
           message: "A failure reason names an address outside the batch result",
         });
+      if (failure.conflict === null) continue;
+      const conflict = contested[failure.conflict];
+      if (
+        conflict === undefined ||
+        failure.address === null ||
+        !conflict.members.has(failure.address) ||
+        !conflict.reasons.includes(failure.reason)
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["failures", key, "conflict"],
+          message: "A conflict reason must match its contested destination",
+        });
+      else conflict.referenced.add(failure.address);
+    }
+    contested.forEach(({ members, referenced }, index) => {
+      if (referenced.size !== members.size)
+        context.addIssue({
+          code: "custom",
+          path: ["conflicts", index],
+          message: "Every requesting address fails with this conflict",
+        });
+    });
   });
+/** A single edit reports one key and only reasons one address can produce. */
+const singleAddressNameOutcome = addressNameOutcomes.superRefine(
+  ({ results, failures }, context) => {
+    if (
+      Object.keys(results).length !== 1 ||
+      Object.values(failures).some(
+        ({ reason }) => !singleAddressNameReasons.has(reason),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message: "A single name edit reports one supported outcome",
+      });
+  },
+);
 
 const byteMatch = byteSearchResultSchema.shape.matches.element;
 const canonicalByteMatch = byteMatch.safeExtend({
@@ -461,25 +519,23 @@ export function parseGhidraInventoryResult(
       ? ok({ value: normalizeNativeLoadImageObservation(parsed.data) })
       : err(inventoryOutputFailure(operation, parsed.error));
   }
-  if (operation === "set_address_name") {
-    const parsed = addressNameOutcome.safeParse(value);
+  if (operation === "set_address_name" || operation === "set_addresses_names") {
+    const parsed = (
+      operation === "set_address_name"
+        ? singleAddressNameOutcome
+        : addressNameOutcomes
+    ).safeParse(value);
     if (!parsed.success)
       return err(inventoryOutputFailure(operation, parsed.error));
-    // The boolean answers the caller; a reported reason keeps the bridge reply.
+    const { results, failures, conflicts } = parsed.data;
+    const outcomes = Object.values(results);
+    // Booleans answer the caller. Failure facts stay in raw_result without a
+    // second copy of those booleans.
     return ok({
-      value: parsed.data.applied,
-      ...(parsed.data.failure === null ? {} : { rawResult: value }),
-    });
-  }
-  if (operation === "set_addresses_names") {
-    const parsed = addressNamesOutcome.safeParse(value);
-    if (!parsed.success)
-      return err(inventoryOutputFailure(operation, parsed.error));
-    return ok({
-      value: parsed.data.results,
-      ...(Object.keys(parsed.data.failures).length === 0
+      value: operation === "set_address_name" ? outcomes[0]! : results,
+      ...(outcomes.every(Boolean)
         ? {}
-        : { rawResult: value }),
+        : { rawResult: { failures, conflicts } }),
     });
   }
   const parsed = resultSchemas[operation].safeParse(value);

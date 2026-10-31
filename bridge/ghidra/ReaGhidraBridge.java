@@ -1958,20 +1958,17 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return primary == null || primary.isDynamic() ? null : primary;
     }
 
-    // Other addresses whose label or function symbol holds the destination.
+    // Every address whose label or function symbol holds the destination.
     private List<Address> addressNameHolders(AddressNameTarget target) {
         Set<Address> holders = new TreeSet<>();
-        for (Symbol symbol : currentProgram.getSymbolTable().getLabelOrFunctionSymbols(target.leaf(), target.namespace())) {
-            if (!target.address().equals(symbol.getAddress())) holders.add(symbol.getAddress());
-        }
+        for (Symbol symbol : currentProgram.getSymbolTable().getLabelOrFunctionSymbols(target.leaf(), target.namespace()))
+            holders.add(symbol.getAddress());
         return List.copyOf(holders);
     }
 
-    // Apply one resolved destination in its own transaction. Null means the
+    // Apply one planned destination in its own transaction. Null means the
     // edit committed with matching primary-symbol readback.
-    private AddressNameFailure applyAddressName(AddressNameTarget target) {
-        List<Address> holders = addressNameHolders(target);
-        if (!holders.isEmpty()) return new AddressNameFailure("name_held_by_unselected_address", holders);
+    private String applyAddressName(AddressNameTarget target) {
         Address address = target.address();
         int transaction = currentProgram.startTransaction("REA address name");
         boolean commit = false;
@@ -1989,45 +1986,33 @@ public final class ReaGhidraBridge extends HeadlessScript {
             invalidateAnalysisCaches();
             Symbol readback = currentProgram.getSymbolTable().getPrimarySymbol(address);
             commit = readback != null && target.leaf().equals(readback.getName());
-            return commit ? null : new AddressNameFailure("readback_mismatch", List.of());
+            return commit ? null : "readback_mismatch";
         }
         catch (ghidra.util.exception.InvalidInputException exception) {
-            return new AddressNameFailure("invalid_name", List.of());
+            return "invalid_name";
         }
         catch (ghidra.util.exception.DuplicateNameException exception) {
-            return new AddressNameFailure("duplicate_name", List.of());
+            return "duplicate_name";
         }
         finally {
             currentProgram.endTransaction(transaction, commit);
         }
     }
 
-    private static JsonObject addressNameFailure(Address address, AddressNameFailure failure) {
-        JsonObject value = new JsonObject();
-        if (address == null) value.add("address", JsonNull.INSTANCE);
-        else value.addProperty("address", canonicalAddress(address));
-        value.addProperty("reason", failure.reason());
-        JsonArray related = new JsonArray();
-        for (Address item : failure.related()) related.add(canonicalAddress(item));
-        value.add("related_addresses", related);
-        return value;
-    }
-
     private JsonElement setAddressName(JsonObject params) throws Exception {
         requireKeys(params, Set.of("document", "address", "name"));
         requireDocument(params);
+        String key = requireString(params, "address");
         Address address = requireAddress(params, "address");
-        AddressNameFailure failure;
-        try {
-            failure = applyAddressName(addressNameTarget(address, requireString(params, "name")));
-        }
-        catch (ghidra.util.exception.InvalidInputException exception) {
-            failure = new AddressNameFailure("invalid_name", List.of());
-        }
-        JsonObject result = new JsonObject();
-        result.addProperty("applied", failure == null);
-        result.add("failure", failure == null ? JsonNull.INSTANCE : addressNameFailure(address, failure));
-        return result;
+        String name = requireString(params, "name");
+        // A single edit keeps request errors for unmapped addresses and
+        // unrepresentable text; other outcomes share the batch representation.
+        if (!currentProgram.getMemory().contains(address))
+            throw new RequestFailure("invalid_request", "Address is not mapped: " + canonicalAddress(address));
+        validateAnnotationText(name, "name");
+        Map<String, String> requested = new LinkedHashMap<>();
+        requested.put(key, name);
+        return applyAddressNames(requested);
     }
 
     private JsonElement setAddressesNames(JsonObject params) throws Exception {
@@ -2035,16 +2020,25 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireDocument(params);
         if (!params.has("names") || !params.get("names").isJsonObject())
             throw new RequestFailure("invalid_request", "names must be an object of address -> name");
-        // Every outcome is decided from the names held before this batch, so
-        // object member order never selects which address receives a name.
+        Map<String, String> requested = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : params.getAsJsonObject("names").entrySet())
+            requested.put(entry.getKey(), entry.getValue().getAsString());
+        return applyAddressNames(requested);
+    }
+
+    // Decide every request from the names held before any edit, so object
+    // member order never selects which address receives a name. Reply with
+    // per-key results and reasons; a contested destination is listed once in
+    // conflicts and failures refer to it by index.
+    private JsonObject applyAddressNames(Map<String, String> requested) {
         Map<String, Address> addressesByKey = new LinkedHashMap<>();
         Map<Address, List<AddressNameRequest>> requestsByAddress = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : params.getAsJsonObject("names").entrySet()) {
+        for (Map.Entry<String, String> entry : requested.entrySet()) {
             Address address = null;
             try {
                 address = parseReaAddress(entry.getKey());
                 requestsByAddress.computeIfAbsent(address, ignored -> new ArrayList<>())
-                    .add(new AddressNameRequest(entry.getKey(), address, entry.getValue().getAsString()));
+                    .add(new AddressNameRequest(entry.getKey(), address, entry.getValue()));
             }
             catch (RequestFailure failure) {
                 // The key keeps its own invalid_address outcome below.
@@ -2052,67 +2046,103 @@ public final class ReaGhidraBridge extends HeadlessScript {
             addressesByKey.put(entry.getKey(), address);
         }
         Map<Address, AddressNameFailure> failures = new HashMap<>();
-        Map<Address, AddressNameTarget> targets = new LinkedHashMap<>();
+        Map<AddressNameDestination, List<AddressNameTarget>> destinations = new LinkedHashMap<>();
         for (Map.Entry<Address, List<AddressNameRequest>> selected : requestsByAddress.entrySet()) {
             Address address = selected.getKey();
             String name = selected.getValue().get(0).name;
             if (selected.getValue().stream().anyMatch(request -> !request.name.equals(name))) {
-                failures.put(address, new AddressNameFailure("conflicting_alias_names", List.of()));
+                failures.put(address, new AddressNameFailure("conflicting_alias_names", null));
                 continue;
             }
             if (!currentProgram.getMemory().contains(address)) {
-                failures.put(address, new AddressNameFailure("unmapped_address", List.of()));
+                failures.put(address, new AddressNameFailure("unmapped_address", null));
                 continue;
             }
             try {
-                targets.put(address, addressNameTarget(address, name));
+                AddressNameTarget target = addressNameTarget(address, name);
+                destinations.computeIfAbsent(target.destination(), ignored -> new ArrayList<>()).add(target);
             }
             catch (RequestFailure | ghidra.util.exception.InvalidInputException exception) {
-                failures.put(address, new AddressNameFailure("invalid_name", List.of()));
+                failures.put(address, new AddressNameFailure("invalid_name", null));
             }
         }
-        // Reject competing destinations and names that another selected
-        // address holds instead of letting application order pick a winner.
-        Map<AddressNameDestination, List<Address>> requesters = new HashMap<>();
-        for (AddressNameTarget target : targets.values())
-            requesters.computeIfAbsent(target.destination(), ignored -> new ArrayList<>()).add(target.address());
-        for (AddressNameTarget target : targets.values()) {
-            List<Address> competing = requesters.get(target.destination()).stream()
-                .filter(address -> !address.equals(target.address()))
-                .sorted()
-                .toList();
-            if (!competing.isEmpty()) {
-                failures.put(target.address(), new AddressNameFailure("duplicate_requested_name", competing));
+        // Reject a destination that several selected addresses request, or
+        // that another address holds, instead of letting order pick a winner.
+        List<AddressNameConflict> conflicts = new ArrayList<>();
+        List<AddressNameTarget> independent = new ArrayList<>();
+        for (List<AddressNameTarget> requesters : destinations.values()) {
+            AddressNameTarget first = requesters.get(0);
+            List<Address> holders = addressNameHolders(first);
+            String reason;
+            if (requesters.size() > 1) {
+                reason = "duplicate_requested_name";
+            } else if (holders.stream().allMatch(first.address()::equals)) {
+                independent.add(first);
                 continue;
+            } else if (holders.stream().anyMatch(holder ->
+                !holder.equals(first.address()) && !requestsByAddress.containsKey(holder))) {
+                reason = "name_held_by_unselected_address";
+            } else {
+                reason = "name_held_by_selected_address";
             }
-            List<Address> holders = addressNameHolders(target);
-            if (holders.isEmpty()) continue;
-            boolean unselected = holders.stream().anyMatch(holder -> !requestsByAddress.containsKey(holder));
-            failures.put(target.address(), new AddressNameFailure(
-                unselected ? "name_held_by_unselected_address" : "name_held_by_selected_address",
+            AddressNameConflict conflict = new AddressNameConflict(
+                first.namespace(),
+                first.leaf(),
+                requesters.stream().map(AddressNameTarget::address).sorted().toList(),
                 holders
-            ));
+            );
+            conflicts.add(conflict);
+            for (AddressNameTarget target : requesters)
+                failures.put(target.address(), new AddressNameFailure(reason, conflict));
         }
-        // The remaining edits have distinct destinations that no other selected
-        // address holds, so their results do not depend on application order.
-        for (AddressNameTarget target : targets.values()) {
-            if (failures.containsKey(target.address())) continue;
-            AddressNameFailure failure = applyAddressName(target);
-            if (failure != null) failures.put(target.address(), failure);
+        // Independent edits have distinct destinations that no other address
+        // holds, so their results do not depend on application order.
+        for (AddressNameTarget target : independent) {
+            String reason = applyAddressName(target);
+            if (reason != null) failures.put(target.address(), new AddressNameFailure(reason, null));
+        }
+        // Requesters belong to exactly one destination, so ordering conflicts
+        // by their first requester gives indexes independent of member order.
+        conflicts.sort(Comparator.comparing((AddressNameConflict conflict) -> conflict.requesters().get(0)));
+        Map<AddressNameConflict, Integer> indexes = new IdentityHashMap<>();
+        JsonArray contested = new JsonArray();
+        for (AddressNameConflict conflict : conflicts) {
+            indexes.put(conflict, contested.size());
+            JsonObject value = new JsonObject();
+            if (conflict.namespace().isGlobal()) value.add("namespace", JsonNull.INSTANCE);
+            else value.addProperty("namespace", conflict.namespace().getName(true));
+            value.addProperty("name", conflict.leaf());
+            value.add("requested_by", canonicalAddresses(conflict.requesters()));
+            value.add("held_by", canonicalAddresses(conflict.holders()));
+            contested.add(value);
         }
         JsonObject results = new JsonObject();
         JsonObject failed = new JsonObject();
         for (Map.Entry<String, Address> entry : addressesByKey.entrySet()) {
             Address address = entry.getValue();
             AddressNameFailure failure = address == null
-                ? new AddressNameFailure("invalid_address", List.of())
+                ? new AddressNameFailure("invalid_address", null)
                 : failures.get(address);
             results.addProperty(entry.getKey(), failure == null);
-            if (failure != null) failed.add(entry.getKey(), addressNameFailure(address, failure));
+            if (failure == null) continue;
+            JsonObject value = new JsonObject();
+            if (address == null) value.add("address", JsonNull.INSTANCE);
+            else value.addProperty("address", canonicalAddress(address));
+            value.addProperty("reason", failure.reason());
+            if (failure.conflict() == null) value.add("conflict", JsonNull.INSTANCE);
+            else value.addProperty("conflict", indexes.get(failure.conflict()));
+            failed.add(entry.getKey(), value);
         }
         JsonObject result = new JsonObject();
         result.add("results", results);
         result.add("failures", failed);
+        result.add("conflicts", contested);
+        return result;
+    }
+
+    private static JsonArray canonicalAddresses(List<Address> addresses) {
+        JsonArray result = new JsonArray();
+        for (Address address : addresses) result.add(canonicalAddress(address));
         return result;
     }
 
@@ -5089,7 +5119,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
             return new AddressNameDestination(namespace.getID(), leaf);
         }
     }
-    private record AddressNameFailure(String reason, List<Address> related) {}
+    private record AddressNameConflict(Namespace namespace, String leaf, List<Address> requesters, List<Address> holders) {}
+    private record AddressNameFailure(String reason, AddressNameConflict conflict) {}
     private record FunctionEntry(Function function, InventoryItem item) {}
     private record FunctionAnalysisObservation(JsonObject dossier, List<String> limitations, JsonObject relationshipCoverage, boolean decompilerFailed) {}
     private record CallBoundaryObservation(List<String> limitations, Integer unrepresentedCalleeCalls, JsonArray unresolvedCalls) {}
