@@ -264,6 +264,12 @@ const handleRequest = (socket, server, request, state) => {
       return;
     }
   }
+  if (request.method === "address_to_file_offset") {
+    socket.write(
+      `${JSON.stringify({ id: request.id, ...fileOffsetReply(request.params.address) })}\n`,
+    );
+    return;
+  }
   const inventory =
     request.method === "list_strings" && state.mode === "fragmented"
       ? [stringItem("0x2000", "fixture 雪🦊")]
@@ -510,6 +516,42 @@ const inventoryResultFor = (method, params) => {
     default:
       return undefined;
   }
+};
+
+// Memory blocks also reported by search_bytes coverage. Replies use the
+// production bridge's address_to_file_offset codes for the same outcomes.
+const FIXTURE_BLOCKS = [
+  { name: ".text", start: 0x1000n, end: 0x1100n, fileOffset: 0n },
+  { name: ".bss", start: 0x2000n, end: 0x200fn, fileOffset: null },
+];
+
+const fileOffsetReply = (address) => {
+  const digits = /^(?:0[xX])?([0-9a-fA-F]+)$/u.exec(address)?.[1];
+  const failure = (code, message) => ({ ok: false, error: { code, message } });
+  if (digits === undefined)
+    return failure("invalid_request", `Invalid address: ${address}`);
+  const value = BigInt(`0x${digits}`);
+  const at = `0x${value.toString(16)}`;
+  const block = FIXTURE_BLOCKS.find(
+    ({ start, end }) => value >= start && value <= end,
+  );
+  if (block === undefined)
+    return failure(
+      "address_unmapped",
+      `Address ${at} is outside every Ghidra memory block`,
+    );
+  if (block.fileOffset === null)
+    return failure(
+      "address_uninitialized",
+      `Address ${at} is in uninitialized Ghidra memory block ${block.name}`,
+    );
+  return {
+    ok: true,
+    result: {
+      address: at,
+      file_offset: Number(block.fileOffset + value - block.start),
+    },
+  };
 };
 
 const nameItem = () => ({
