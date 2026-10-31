@@ -19,6 +19,12 @@ binaries and Ghidra projects are never committed.
   language's default context and checks each mnemonic, length and optional
   complete operand. The `ghidra-bridge-sources` CI job runs it for `ARM:LE:32:Cortex`,
   `ARM:LE:32:v8-m` and `Xtensa:LE:32:default`; the bytes are never executed.
+- `elf-role-label-fixture.mjs` writes source-owned x86-64 ELF executables whose
+  header entry has no symbol, a genuine global `FUNC entry` symbol, or an
+  undecoded `.gnu_debugdata` section. `ReaElfRoleLabelProbe.java` imports each
+  with Ghidra's ELF loader and checks the production bridge's
+  `loader_role_label` for the loader's `entry` function. The
+  `ghidra-bridge-sources` CI job runs it; the bytes are never executed.
 - `inventory.c` produces separate x86-64 debug and stripped ELF executables.
   It covers imports, an external `puts` function, linker thunks, source symbols,
   direct calls, a targetless callback call, two referenced strings, and a
