@@ -36,7 +36,8 @@ single subsection holding them all. Its `own_text_terms` lists the terms in its
 own text, and `subsections` lists up to 8 subsection locators, chosen greedily,
 whose own text holds the rest; `omitted_subsections` counts any more that were
 needed. Section matches rank first. A parent is not listed when one subsection
-holds every term, because that subsection is already a match. `content_length`
+holds every term, because that subsection is already a match, unless the
+parent's own text also holds them all. `content_length`
 is the size of the section that read returns, so callers can decide before
 reading a broad parent.
 

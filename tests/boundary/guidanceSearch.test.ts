@@ -75,6 +75,7 @@ it("separates focused installed guidance from terms spread across a broad parent
     if (!scattered.ok) throw scattered.error;
     if (scattered.value.status !== "matches")
       throw new Error("Expected guidance matches");
+    let checkedScattered = 0;
     for (const match of scattered.value.matches) {
       const read = await readGuidanceSection(
         { locator: match.locator },
@@ -84,6 +85,7 @@ it("separates focused installed guidance from terms spread across a broad parent
         throw new Error("Expected a readable section");
       expect(read.value.content).toHaveLength(match.content_length);
       if (match.match_scope === "section") continue;
+      checkedScattered += 1;
       const pointers = match.subsections ?? [];
       expect(pointers.length).toBeGreaterThan(0);
       for (const pointer of pointers)
@@ -97,6 +99,8 @@ it("separates focused installed guidance from terms spread across a broad parent
       ]);
       expect(terms.filter((term) => !located.has(term))).toEqual([]);
     }
+    // These terms sit in different subsections of the installed guides.
+    expect(checkedScattered).toBeGreaterThan(0);
   } finally {
     await resources.close();
   }
