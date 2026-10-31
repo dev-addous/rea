@@ -485,7 +485,12 @@ const inventoryResultFor = (method, params) => {
           ],
           bytes: continued ? 5 : 10,
           skipped_uninitialized: [
-            { segment: ".bss", start: "0x2000", end: "0x200f", bytes: 16 },
+            {
+              segment: BSS_BLOCK.name,
+              start: hex(BSS_BLOCK.start),
+              end: hex(BSS_BLOCK.start + BSS_BLOCK.size - 1n),
+              bytes: Number(BSS_BLOCK.size),
+            },
           ],
           skipped_not_loaded: [],
         },
@@ -518,12 +523,23 @@ const inventoryResultFor = (method, params) => {
   }
 };
 
-// Memory blocks also reported by search_bytes coverage. Replies use the
-// production bridge's address_to_file_offset codes for the same outcomes.
-const FIXTURE_BLOCKS = [
-  { name: ".text", start: 0x1000n, end: 0x1100n, fileOffset: 0n },
-  { name: ".bss", start: 0x2000n, end: 0x200fn, fileOffset: null },
-];
+// One owner for the fixture's memory blocks. Each reply uses the production
+// bridge's end convention: list_segments reports an exclusive end, byte-search
+// coverage an inclusive one, and address_to_file_offset tests containment.
+const TEXT_BLOCK = {
+  name: ".text",
+  start: 0x1000n,
+  size: 0x100n,
+  fileOffset: 0n,
+};
+const BSS_BLOCK = {
+  name: ".bss",
+  start: 0x2000n,
+  size: 0x10n,
+  fileOffset: null,
+};
+const FIXTURE_BLOCKS = [TEXT_BLOCK, BSS_BLOCK];
+const hex = (value) => `0x${value.toString(16)}`;
 
 const fileOffsetReply = (address) => {
   const digits = /^(?:0[xX])?([0-9a-fA-F]+)$/u.exec(address)?.[1];
@@ -531,9 +547,9 @@ const fileOffsetReply = (address) => {
   if (digits === undefined)
     return failure("invalid_request", `Invalid address: ${address}`);
   const value = BigInt(`0x${digits}`);
-  const at = `0x${value.toString(16)}`;
+  const at = hex(value);
   const block = FIXTURE_BLOCKS.find(
-    ({ start, end }) => value >= start && value <= end,
+    ({ start, size }) => value >= start && value < start + size,
   );
   if (block === undefined)
     return failure(
@@ -573,9 +589,9 @@ const procedureItem = () => ({
 });
 
 const segmentItem = () => ({
-  name: ".text",
-  start: "0x1000",
-  end: "0x1100",
+  name: TEXT_BLOCK.name,
+  start: hex(TEXT_BLOCK.start),
+  end: hex(TEXT_BLOCK.start + TEXT_BLOCK.size),
   readable: true,
   writable: false,
   executable: true,
