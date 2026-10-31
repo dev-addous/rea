@@ -3554,7 +3554,7 @@ process.stdin.on('data', (chunk) => {
   }
 });
 
-it("stops the GDB session when a complete MI record exceeds the protocol limit", async () => {
+it("closes the GDB session when a complete MI record exceeds the protocol limit", async () => {
   const manager = await managerFor(`
 process.stdout.write('(gdb)\\n');
 let input = '';
@@ -3576,9 +3576,20 @@ process.stdin.on('data', (chunk) => {
 
   const failed = await manager.execute(started.value.session_id, "bad-record");
 
-  expect(failed.ok).toBe(false);
-  if (!failed.ok)
-    expect(failed.error._tag).toBe("AnalysisCapabilityUnavailableError");
+  expect(failed).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisCapabilityUnavailableError",
+      reason: expect.stringContaining("MI line exceeding the 16777216 byte"),
+      cleanupIncomplete: true,
+      cleanup: { resources: [started.value.session_id] },
+      partialObservation: {
+        predicate_type: "rea.debugger.console-observation",
+        raw_result: { command: "bad-record", completion_status: "unknown" },
+      },
+    },
+  });
+  expect(manager.status(started.value.session_id)?.state).toBe("closed");
 });
 
 it("rejects a partial MI line that exceeds the protocol limit", async () => {
@@ -3606,9 +3617,20 @@ process.stdin.on('data', (chunk) => {
     "partial-line",
   );
 
-  expect(failed.ok).toBe(false);
-  if (!failed.ok)
-    expect(failed.error._tag).toBe("AnalysisCapabilityUnavailableError");
+  expect(failed).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisCapabilityUnavailableError",
+      reason: expect.stringContaining("MI line exceeding the 16777216 byte"),
+      cleanupIncomplete: true,
+      cleanup: { resources: [started.value.session_id] },
+      partialObservation: {
+        predicate_type: "rea.debugger.console-observation",
+        raw_result: { command: "partial-line", completion_status: "unknown" },
+      },
+    },
+  });
+  expect(manager.status(started.value.session_id)?.state).toBe("closed");
 });
 
 it("caps the number of MI records retained for a single command", async () => {
