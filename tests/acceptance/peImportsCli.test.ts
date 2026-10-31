@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
@@ -168,7 +169,9 @@ cliTest(
   "resolves a relative PE path against the working directory",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-pe-imports-cli-rel-");
-    await writeFile(join(root, "unsigned.exe"), peWithoutImportTableFixture());
+    const path = join(root, "unsigned.exe");
+    const bytes = peWithoutImportTableFixture();
+    await writeFile(path, bytes);
     const result = await cli.run({
       arguments: ["inspect-pe-imports", "unsigned.exe", "--json"],
       cwd: root,
@@ -177,8 +180,33 @@ cliTest(
     const evidence = toolContract("inspect_pe_imports").outputSchema.parse(
       result.json,
     );
-    expect(evidence.normalized_result.import_directory).toBeNull();
-    expect(evidence.subject?.local_path).toBe(join(root, "unsigned.exe"));
+    expect(evidence).toMatchObject({
+      confidence: "observed",
+      subject: {
+        local_path: path,
+        format: "pe",
+        architecture: "x86_64",
+        digest: { sha256: createHash("sha256").update(bytes).digest("hex") },
+      },
+      normalized_result: {
+        artifact: { path, bytes: bytes.length },
+        format: "pe32-plus",
+        machine: 0x8664,
+        bits: 64,
+        architecture: "amd64",
+        import_directory: null,
+        delay_import_directory: null,
+        imports: [],
+        delay_imports: [],
+        imphash: { algorithm: "pefile", md5: null },
+        coverage: {
+          status: "complete",
+          examined_dlls: 0,
+          imports: 0,
+          delay_imports: 0,
+        },
+      },
+    });
   },
 );
 

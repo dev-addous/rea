@@ -74,7 +74,10 @@ cliTest(
       evidence_bundle: { path: string };
     };
     const view = routeViewFromEvidence(envelope.summary);
-    expect(view.items).toHaveLength(2);
+    expect(view.items).toEqual([
+      expect.objectContaining({ path: "/reports" }),
+      expect.objectContaining({ path: "/reports/aliased" }),
+    ]);
     expect(view.coverage).toMatchObject({ total: 6, next_offset: 2 });
     expect(view.sources[0]!.sha256).toMatch(/^[a-f0-9]{64}$/u);
     await rm(path, { recursive: true });
@@ -110,7 +113,13 @@ cliTest(
       ],
     });
     expect(repeated.exitCode, repeated.stdout + repeated.stderr).toBe(0);
-    expect(routeViewFromEvidence(repeated.json).items).toHaveLength(2);
+    const nextPage = routeViewFromEvidence(repeated.json);
+    expect(nextPage.parent_evidence_id).toBe(view.parent_evidence_id);
+    expect(nextPage.coverage).toMatchObject({ total: 6, next_offset: 4 });
+    expect(nextPage.items).toEqual([
+      expect.objectContaining({ path: "/reports/help" }),
+      expect.objectContaining({ path: "/reports/history" }),
+    ]);
   },
 );
 cliTest(
