@@ -236,10 +236,13 @@ cliTest(
     });
     const atomChunks = report.chunks.filter(({ name }) => name === "AtU8");
     expect(atomChunks).toHaveLength(2);
-    expect(atomChunks[0]?.payload.sha256).toEqual(expect.any(String));
-    expect(atomChunks[1]?.payload.sha256).toEqual(expect.any(String));
-    expect(atomChunks[0]?.payload.sha256).not.toBe(
-      atomChunks[1]?.payload.sha256,
+    expect(atomChunks[0]?.payload.sha256).toBe(
+      createHash("sha256").update(decoy.subarray(8, 14)).digest("hex"),
+    );
+    expect(atomChunks[1]?.payload.sha256).toBe(
+      createHash("sha256")
+        .update(original.subarray(20, 20 + original.readUInt32BE(16)))
+        .digest("hex"),
     );
     expect(atomChunks[0]?.payload.location.offset).toBe(20);
     expect(atomChunks[1]?.payload.location.offset).toBe(20 + decoy.length);
@@ -318,15 +321,16 @@ cliTest(
     expect(extended.normalized_result.artifact.sha256).not.toBe(
       control.normalized_result.artifact.sha256,
     );
-    expect(extended.normalized_result.chunks[0]?.payload.sha256).toEqual(
-      expect.any(String),
-    );
-    expect(control.normalized_result.chunks[0]?.payload.sha256).toEqual(
-      expect.any(String),
-    );
-    expect(extended.normalized_result.chunks[0]?.payload.sha256).not.toBe(
-      control.normalized_result.chunks[0]?.payload.sha256,
-    );
+    for (const [evidence, bytes] of [
+      [control, controlBytes],
+      [extended, extendedBytes],
+    ] as const) {
+      expect(evidence.normalized_result.chunks[0]?.payload.sha256).toBe(
+        createHash("sha256")
+          .update(bytes.subarray(20, 20 + bytes.readUInt32BE(16)))
+          .digest("hex"),
+      );
+    }
   },
 );
 

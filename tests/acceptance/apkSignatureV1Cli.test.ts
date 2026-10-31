@@ -332,9 +332,11 @@ cliTest(
       expect(
         evidence.normalized_result.schemes.v1.signers[0]?.decode_error,
       ).toContain("malformed PKCS#7");
-      expect(evidence.limitations).toContain(
-        "v1_signers_match_block_signers is null: one or more v1 signer identities are unknown; inspect the v1 signer records for details.",
+      const comparisonLimitation = evidence.limitations.find((limitation) =>
+        limitation.includes("v1_signers_match_block_signers"),
       );
+      expect(comparisonLimitation).toContain("v1 signer identit");
+      expect(comparisonLimitation).toContain("unknown");
     }
   },
 );

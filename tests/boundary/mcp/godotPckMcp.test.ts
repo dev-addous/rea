@@ -1,4 +1,5 @@
 import { writeFile, unlink } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterAll, expect, it } from "vitest";
@@ -11,6 +12,8 @@ import { ArtifactProvider } from "../../../src/artifacts/ArtifactProvider.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { artifactInspectionResultSchema } from "../../../src/domain/artifactInspection.js";
+import { artifactIdForContent } from "../../../src/domain/artifactIdentity.js";
+import type { ArtifactOccurrence } from "../../../src/domain/artifactGraph.js";
 import {
   artifactInventorySummaryViewResultSchema,
   analysisViewResultSchema,
@@ -91,7 +94,36 @@ const assertInvalidNodeField = async (
   });
 };
 
+const expectedPckMembers = (
+  members: readonly { path: string; data: string }[],
+  occurrences: readonly ArtifactOccurrence[],
+) => {
+  const expected = members.map((member) => {
+    const sha256 = createHash("sha256").update(member.data).digest("hex");
+    return {
+      logical_path: member.path.slice("res://".length),
+      source_path: member.path,
+      artifact_id: artifactIdForContent(sha256),
+      sha256,
+      size: Buffer.byteLength(member.data),
+    };
+  });
+  expect(occurrences).toHaveLength(expected.length);
+  expect(occurrences).toEqual(
+    expect.arrayContaining(
+      expected.map(({ logical_path, source_path, artifact_id }) =>
+        expect.objectContaining({ logical_path, source_path, artifact_id }),
+      ),
+    ),
+  );
+  return expected;
+};
+
 const profiles = ["full", "compact"] as const;
+const members = [
+  { path: "res://a.txt", data: "a" },
+  { path: "res://b.txt", data: "b" },
+];
 const inventoryCases = profiles.flatMap((profile) => [
   { profile, version: 1 as const },
   { profile, version: 4 as const },
@@ -100,10 +132,6 @@ it.each(inventoryCases)("retains PCK ($profile/v$version)", async (input) => {
   const { profile, version } = input;
   const root = await createTestTempDirectory("rea-pck-mcp-");
   const path = join(root, "game.pck");
-  const members = [
-    { path: "res://a.txt", data: "a" },
-    { path: "res://b.txt", data: "b" },
-  ];
   await writeFile(
     path,
     version === 1 ? buildGodotPck1(members) : buildGodotPck(4, members),
@@ -165,9 +193,10 @@ it.each(inventoryCases)("retains PCK ($profile/v$version)", async (input) => {
       profile === "full" ? validators : undefined,
     );
     const wanted = graph.occurrences.filter((row) => row.logical_path !== ".");
+    const expectedMembers = expectedPckMembers(members, wanted);
     const occurrences = await view({
       collection: "occurrences",
-      logical_paths: wanted.map((row) => row.logical_path),
+      logical_paths: expectedMembers.map((member) => member.logical_path),
       fields: [
         "logical_path",
         "source_path",
@@ -189,9 +218,14 @@ it.each(inventoryCases)("retains PCK ($profile/v$version)", async (input) => {
         format_metadata: row.format_metadata,
       })),
     );
-    const ids = wanted.flatMap((row) =>
-      row.artifact_id === null ? [] : [row.artifact_id],
+    expect(occurrences.items).toEqual(
+      expect.arrayContaining(
+        expectedMembers.map(({ logical_path, source_path, artifact_id }) =>
+          expect.objectContaining({ logical_path, source_path, artifact_id }),
+        ),
+      ),
     );
+    const ids = expectedMembers.map((member) => member.artifact_id);
     const nodes = await view({
       collection: "nodes",
       artifact_ids: ids,
@@ -206,6 +240,16 @@ it.each(inventoryCases)("retains PCK ($profile/v$version)", async (input) => {
           sha256: row.sha256,
           size: row.size,
         })),
+    );
+    expect(nodes.items).toHaveLength(expectedMembers.length);
+    expect(nodes.items).toEqual(
+      expect.arrayContaining(
+        expectedMembers.map(({ artifact_id, sha256, size }) => ({
+          artifact_id,
+          sha256,
+          size,
+        })),
+      ),
     );
     await unlink(path);
     const historical = await view({
