@@ -68,6 +68,54 @@ cliTest.for(cases)(
         .filter((row) => row.logical_path !== ".")
         .map((row) => row.logical_path),
     ).toEqual(Object.keys(regions));
+    if (encoding === "intel-hex") {
+      expect(graph.coverage.scope).toBe("container-entries");
+      expect(graph.limitations).toContain(
+        "Intel HEX/S-record inventory decodes data records into address-contiguous regions. It does not establish CPU, byte order, memory map, or that a declared start address is executable; gaps are unwritten, not zero.",
+      );
+      expect(
+        graph.occurrences.find((row) => row.logical_path === "."),
+      ).toMatchObject({
+        artifact_kind: "container",
+        format_metadata: { region_count: 2 },
+      });
+      expect(
+        graph.occurrences
+          .filter((row) => row.logical_path !== ".")
+          .map((row) => [
+            row.logical_path,
+            row.declared_size,
+            row.format_metadata,
+          ]),
+      ).toEqual([
+        [
+          "0x08000000-0x0800001f.bin",
+          32,
+          {
+            kind: "hex-record-region",
+            start_address: 0x0800_0000,
+            end_address: 0x0800_001f,
+            length: 32,
+            record_count: 2,
+            first_line: 2,
+            last_line: 3,
+          },
+        ],
+        [
+          "0x08000100-0x08000103.bin",
+          4,
+          {
+            kind: "hex-record-region",
+            start_address: 0x0800_0100,
+            end_address: 0x0800_0103,
+            length: 4,
+            record_count: 1,
+            first_line: 4,
+            last_line: 4,
+          },
+        ],
+      ]);
+    }
     expect(inspection.next_probes.map((probe) => probe.operation)).toEqual([
       "open_binary",
     ]);
