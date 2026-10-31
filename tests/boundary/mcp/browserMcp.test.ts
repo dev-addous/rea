@@ -1,10 +1,12 @@
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { crc32, deflateSync } from "node:zlib";
 import { parseEvidence } from "../../../src/domain/evidence.js";
-import { ok as resultOk } from "../../../src/domain/result.js";
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { err, ok as resultOk } from "../../../src/domain/result.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
+import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
+import type { Client } from "@modelcontextprotocol/client";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { afterAll, afterEach, expect, it } from "vitest";
+import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -20,16 +22,27 @@ import { expandToolAvailability } from "../../../src/contracts/toolOutputSchemaP
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
+import { createTestMcp } from "../../support/mcp/mcpFixture.js";
 import {
   startFakeCdpBrowser,
   type FakeCdpBrowser,
 } from "../../fixtures/fakeCdpBrowser.js";
 
 const schemaValidation = createMcpSchemaValidation();
-afterAll(() => schemaValidation.clear());
-
-const resources: Array<{ close(): Promise<unknown> }> = [];
-const browsers: FakeCdpBrowser[] = [];
+const resources = new ArtifactResourceScope();
+const retainResource = (resource: string, close: () => Promise<void>): void => {
+  resources.retain({ kind: "lease", resource, lease: { release: close } });
+};
+const retainBrowser = (browser: FakeCdpBrowser): void => {
+  retainResource(browser.endpoint, () => browser.close());
+};
+afterAll(async () => {
+  try {
+    await resources.close();
+  } finally {
+    schemaValidation.clear();
+  }
+});
 const INTEGRATION_TEST_TIMEOUT_MS = 20_000;
 
 it("preserves Link parameter order and context through the advertised MCP contract", async () => {
@@ -80,7 +93,7 @@ it("preserves Link parameter order and context through the advertised MCP contra
       ];
     },
   });
-  browsers.push(browser);
+  retainBrowser(browser);
   const connected = await connectBrowser();
   const advertised = (await connected.client.listTools()).tools.find(
     ({ name }) => name === "inspect_web_page",
@@ -216,7 +229,7 @@ cliTest(
             ]
           : undefined,
     });
-    browsers.push(browser);
+    retainBrowser(browser);
     const { client, session } = await connectBrowser();
     const args = {
       cdp_endpoint: browser.endpoint,
@@ -271,11 +284,49 @@ cliTest(
   INTEGRATION_TEST_TIMEOUT_MS,
 );
 
-afterEach(async () => {
-  await Promise.all(
-    resources.splice(0).map(async (resource) => resource.close()),
+afterEach(() => resources.retryCleanup());
+
+it("closes the browser and retains failed MCP and session cleanup for retry", async () => {
+  const { client, session } = await connectBrowser();
+  const browser = await startFakeCdpBrowser();
+  retainBrowser(browser);
+  const browserClose = vi.spyOn(browser, "close");
+  const sdkFailure = new Error("controlled SDK close failure");
+  const sessionFailure = new ProviderCleanupError(
+    "fixture",
+    ["session-owner"],
+    {
+      reason: "controlled session close failure",
+    },
   );
-  await Promise.all(browsers.splice(0).map(async (browser) => browser.close()));
+  const clientClose = vi
+    .spyOn(client, "close")
+    .mockRejectedValueOnce(sdkFailure);
+  const sessionClose = vi
+    .spyOn(session, "close")
+    .mockResolvedValueOnce(err(sessionFailure));
+  try {
+    const failure: unknown = await resources
+      .retryCleanup()
+      .catch((cause: unknown) => cause);
+    expect(failure).toMatchObject({
+      cause: expect.objectContaining({
+        errors: expect.arrayContaining([sdkFailure, sessionFailure]),
+      }),
+    });
+    await expect(fetch(`${browser.endpoint}/json/version`)).rejects.toThrow();
+    expect(clientClose).toHaveBeenCalledTimes(1);
+    expect(sessionClose).toHaveBeenCalledTimes(1);
+    await resources.retryCleanup();
+    expect(clientClose).toHaveBeenCalledTimes(2);
+    expect(sessionClose).toHaveBeenCalledTimes(2);
+    expect(browserClose).toHaveBeenCalledTimes(1);
+  } finally {
+    clientClose.mockRestore();
+    sessionClose.mockRestore();
+    await resources.retryCleanup();
+    browserClose.mockRestore();
+  }
 });
 
 it(
@@ -287,7 +338,7 @@ it(
       sensitiveShapes: true,
       eventsBeforeReply: ["Network.enable"],
     });
-    browsers.push(browser);
+    retainBrowser(browser);
     const connected = await connectBrowser();
 
     const tools = await connected.client.listTools();
@@ -670,7 +721,7 @@ cliTest(
         mappings: "AAAA",
       }),
     });
-    browsers.push(browser);
+    retainBrowser(browser);
     const connected = await connectBrowser();
     const result = await connected.client.callTool({
       name: "analyze_web_bundle",
@@ -752,7 +803,7 @@ it.each(["full", "compact"] as const)(
   "records a browser-socket endpoint redacted and reconciles its Evidence (%s)",
   async (profile) => {
     const browser = await startFakeCdpBrowser();
-    browsers.push(browser);
+    retainBrowser(browser);
     const connected = await connectBrowser(profile);
     const tool = (await connected.client.listTools()).tools.find(
       ({ name }) => name === "inspect_web_page",
@@ -806,7 +857,7 @@ it.each([
   "selects the exact opaque target ID through %s",
   async (name, observationMs) => {
     const browser = await startFakeCdpBrowser();
-    browsers.push(browser);
+    retainBrowser(browser);
     const { client } = await connectBrowser();
     const args = {
       cdp_endpoint: browser.endpoint,
@@ -832,7 +883,7 @@ it.each([
 
 it("does not attach to a target outside the request's allowed origin scope", async () => {
   const browser = await startFakeCdpBrowser();
-  browsers.push(browser);
+  retainBrowser(browser);
   const connected = await connectBrowser();
   const result = await connected.client.callTool({
     name: "inspect_web_page",
@@ -897,6 +948,12 @@ const connectBrowser = async (profile?: "full" | "compact") => {
     execute: () => Promise.resolve(observed(null)),
     close: () => Promise.resolve(resultOk(null)),
   }));
+  retainResource("binary session", async () => {
+    const result = await session.close();
+    if (!result.ok) throw result.error;
+  });
+  const mcp = createTestMcp();
+  retainResource("MCP connection", () => mcp.close());
   const server = createServer(
     { kind: "session", session },
     {
@@ -908,15 +965,11 @@ const connectBrowser = async (profile?: "full" | "compact") => {
       }),
     },
   );
-  const client = new Client(
+  const client = await mcp.connect(
+    server,
     { name: "browser-mcp-test", version: "1" },
-    { jsonSchemaValidator: schemaValidation },
+    schemaValidation,
   );
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  resources.push(client, server, session);
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
   return { client, session };
 };
 
@@ -960,7 +1013,7 @@ it.each([24, 32, "crc"])(
       commandResult: ({ method }) =>
         method === "Page.captureScreenshot" ? { data } : undefined,
     });
-    browsers.push(browser);
+    retainBrowser(browser);
     const { client } = await connectBrowser();
     const result = await client.callTool({
       name: "capture_web_screenshot",

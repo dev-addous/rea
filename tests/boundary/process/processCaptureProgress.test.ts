@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { expect, onTestFinished } from "vitest";
 import { z } from "zod";
 
@@ -11,7 +11,7 @@ import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { silentLogger } from "../../../src/logger.js";
-import { createServer } from "../../../src/server/createServer.js";
+import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
@@ -211,13 +211,10 @@ const connectProgressClient = async (
   const session = createTestBinarySession(() => {
     throw new Error("Process capture must not launch a binary provider");
   });
-  const server = createServer(
-    { kind: "session", session },
-    { logger: silentLogger },
-  );
-  const client = new Client({
-    name: "process-capture-progress",
-    version: "1",
+  const { client } = await createApplicationMcpHarness({
+    session,
+    serverOptions: { logger: silentLogger },
+    clientIdentity: { name: "process-capture-progress", version: "1" },
   });
   const notifications: string[] = [];
   let sawCleanup: (() => void) | undefined;
@@ -230,13 +227,6 @@ const connectProgressClient = async (
       if (notification.params.message?.startsWith("cleanup:")) sawCleanup?.();
     });
   }
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
-  onTestFinished(async () => {
-    await Promise.allSettled([client.close(), server.close(), session.close()]);
-  });
   return { client, notifications, cleanupProgress };
 };
 
