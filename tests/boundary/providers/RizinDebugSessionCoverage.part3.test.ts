@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { withVerifierCleanup } from "../../../scripts/lib/verifier-cleanup.mjs";
+import { awaitAcknowledgement } from "../../fixtures/lifecycleAcknowledgement.js";
 import {
   AnalysisCancelledError,
   AnalysisInputError,
@@ -517,26 +519,36 @@ it.skipIf(process.platform === "win32").each([
       "noisy",
       controller.signal,
     );
-    await entered;
-    controller.abort(reason);
-    releaseStop();
-    const result = await pending;
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toMatchObject({
-      _tag: "AnalysisCancelledError",
-      cleanupIncomplete: incomplete,
-    });
-    expect(result.error.cause).toBe(reason);
-    expect(result.error.capturedOutput?.stdout).toBe(
-      stage === "output" ? "beyond s" : stage === "exited" ? "partial" : "",
-    );
-    expect(result.error.partialObservation).toBeDefined();
-    if (incomplete) {
-      stopping = false;
-      expect((await manager.close(started.value.session_id)).ok).toBe(true);
-      expect(result.error.cleanupIncomplete).toBe(false);
-    }
+    await withVerifierCleanup(async () => {
+      await awaitAcknowledgement(entered, pending, "debugger final cleanup");
+      controller.abort(reason);
+      releaseStop();
+      const result = await pending;
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCancelledError",
+        cleanupIncomplete: incomplete,
+      });
+      expect(result.error.cause).toBe(reason);
+      expect(result.error.capturedOutput?.stdout).toBe(
+        stage === "output" ? "beyond s" : stage === "exited" ? "partial" : "",
+      );
+      expect(result.error.partialObservation).toBeDefined();
+      if (incomplete) {
+        stopping = false;
+        expect((await manager.close(started.value.session_id)).ok).toBe(true);
+        expect(result.error.cleanupIncomplete).toBe(false);
+      }
+    }, [
+      releaseStop,
+      async () => {
+        await pending;
+      },
+      () => {
+        stopping = false;
+      },
+    ]);
   },
 );
 

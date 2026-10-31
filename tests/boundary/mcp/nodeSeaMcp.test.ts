@@ -84,14 +84,19 @@ it.each(["full", "compact"] as const)(
       expect(await readFile(join(result.output_root, "data.txt"), "utf8")).toBe(
         "data",
       );
-      await call("close_binary", {});
+      expect((await call("close_binary", {})).isError).not.toBe(true);
       await writeFile(path, nodeSeaPe({ blob: Buffer.alloc(16) }));
-      await call("open_binary", { path });
+      expect((await call("open_binary", { path })).isError).not.toBe(true);
       const invalid = await call("inspect_artifact", {});
-      expect(JSON.stringify(parseMcpToolError(invalid))).toContain(
-        "Node SEA blob magic",
-      );
-      await call("close_binary", {});
+      expect(parseMcpToolError(invalid).error).toMatchObject({
+        code: "artifact_operation_failed",
+        details: {
+          operation: "inspect_artifact",
+          reason: "format",
+          detail: expect.stringContaining("magic"),
+        },
+      });
+      expect((await call("close_binary", {})).isError).not.toBe(true);
       await writeFile(
         path,
         nodeSeaPe({
@@ -103,11 +108,17 @@ it.each(["full", "compact"] as const)(
           }),
         }),
       );
-      await call("open_binary", { path });
+      expect((await call("open_binary", { path })).isError).not.toBe(true);
       const overLimit = await call("inspect_artifact", {});
-      expect(JSON.stringify(parseMcpToolError(overLimit))).toContain(
-        "Node SEA asset count exceeds",
-      );
+      expect(parseMcpToolError(overLimit).error).toMatchObject({
+        code: "truncated",
+        details: {
+          operation: "inspect_artifact",
+          reason: "limit",
+          boundary: "capacity",
+          truncated: true,
+        },
+      });
     } finally {
       if (outputRoot !== undefined)
         await rm(outputRoot, { recursive: true, force: true });
