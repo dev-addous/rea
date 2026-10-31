@@ -98,6 +98,10 @@ cliTest("rejects a malformed record through the CLI", async ({ cli }) => {
     arguments: ["inspect-artifact", source, "--json"],
   });
   expect(result.exitCode).not.toBe(0);
+  expect(result.json).toMatchObject({
+    code: "artifact_operation_failed",
+    details: { operation: "inspect_artifact", reason: "format" },
+  });
   expect(result.stdout + result.stderr).toContain(
     "Intel HEX is malformed: line 4: record type 00 checksum 0xc4 does not match computed 0xc3",
   );

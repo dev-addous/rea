@@ -17,9 +17,12 @@ import {
   LEAF_CERTIFICATE,
   LEAF_SHA256,
   LEAF_SUBJECT,
+  OID_ECDSA_SHA256,
+  OID_SHA256,
   OPENSSL_BLOCK_ISSUER_SERIAL,
   OPENSSL_BLOCK_KEY_ID,
   ROOT_CERTIFICATE,
+  ROOT_SHA256,
   signedDataBlock,
   signerInfo,
   tlv,
@@ -45,6 +48,41 @@ const completeEvidence = (value: unknown) => {
   };
 };
 
+const expectV1Only = (
+  report: ReturnType<typeof completeEvidence>["normalized_result"],
+) => {
+  expect(report.schemes.v1.present).toBe(true);
+  expect(report.posture).toMatchObject({
+    v1_only: true,
+    strongest_scheme: "v1",
+    v1_signers_match_block_signers: null,
+  });
+  expect(report.schemes.v1.signers).toMatchObject([
+    {
+      signature_file: "META-INF/CERT.SF",
+      block_file: "META-INF/CERT.EC",
+      certificate: {
+        sha256_fingerprint: LEAF_SHA256,
+        subject: LEAF_SUBJECT,
+        public_key_algorithm: "ec",
+      },
+      certificates: [
+        { sha256_fingerprint: LEAF_SHA256, subject: LEAF_SUBJECT },
+        { sha256_fingerprint: ROOT_SHA256 },
+      ],
+      signer_infos: [
+        {
+          identified_by: "issuer-and-serial",
+          certificate_sha256: LEAF_SHA256,
+          digest_algorithm_oid: OID_SHA256,
+          signature_algorithm_oid: OID_ECDSA_SHA256,
+        },
+      ],
+      decode_error: null,
+    },
+  ]);
+};
+
 cliTest(
   "names the v1 signer certificate and a v1/v2 signer mismatch identically through CLI and MCP",
   async ({ cli }) => {
@@ -57,6 +95,20 @@ cliTest(
     ]);
     const v1Only = join(root, "v1-only.apk");
     await writeFile(v1Only, v1Zip);
+    const v1Stored = join(root, "v1-stored.apk");
+    await writeFile(
+      v1Stored,
+      await zipWith([
+        { name: "classes.dex", data: "dex" },
+        { name: "META-INF/MANIFEST.MF", data: "Manifest-Version: 1.0" },
+        { name: "META-INF/CERT.SF", data: "Signature-Version: 1.0" },
+        {
+          name: "META-INF/CERT.EC",
+          data: OPENSSL_BLOCK_ISSUER_SERIAL,
+          stored: true,
+        },
+      ]),
+    );
     // The v2 block names a different certificate than the JAR signature.
     const mixed = join(root, "v1-v2-mismatch.apk");
     await writeFile(
@@ -118,23 +170,14 @@ cliTest(
       return completeEvidence(result.json);
     };
     const cliV1 = await viaCli(v1Only);
+    const cliStored = await viaCli(v1Stored);
     const cliMixed = await viaCli(mixed);
     const cliRotated = await viaCli(rotated);
     const cliRotatedWithV2 = await viaCli(rotatedWithV2);
     const cliMisrotated = await viaCli(misrotated);
 
-    expect(cliV1.normalized_result.schemes.v1.signers).toMatchObject([
-      {
-        signature_file: "META-INF/CERT.SF",
-        block_file: "META-INF/CERT.EC",
-        certificate: { sha256_fingerprint: LEAF_SHA256, subject: LEAF_SUBJECT },
-        decode_error: null,
-      },
-    ]);
-    expect(cliV1.normalized_result.posture).toMatchObject({
-      v1_only: true,
-      v1_signers_match_block_signers: null,
-    });
+    expectV1Only(cliV1.normalized_result);
+    expectV1Only(cliStored.normalized_result);
     expect(cliMixed.normalized_result.posture).toMatchObject({
       v1_only: false,
       v1_signers_match_block_signers: false,

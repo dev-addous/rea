@@ -16,7 +16,7 @@ import {
 import { basename, dirname, join, relative } from "node:path";
 import canonicalize from "canonicalize";
 
-import { expect, it as test, vi } from "vitest";
+import { expect, it as test, onTestFinished, vi } from "vitest";
 
 import { inspectKunaInstallationOwned as inspectKunaInstallation } from "./kunaResourceScope.js";
 import { cleanupOwnedProcessGroup } from "../../../../src/process/ProcessOwnership.js";
@@ -300,6 +300,7 @@ it("publishes a verified export and serves later requests from the cache", async
   // Kuna listed and decompiled a staged copy from REA's own HOME, in reference mode.
   const [listing] = await callsOf(kuna, "functions");
   const [exported] = await callsOf(kuna, "decompile-project");
+  expect(exported?.argv[1]).toEqual(expect.any(String));
   expect(listing?.argv).toEqual(["functions", exported?.argv[1], "--json"]);
   expect(exported?.argv.slice(2)).toEqual([
     "-o",
@@ -1127,6 +1128,9 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
     { project: "hang" },
   );
   let exports = 0;
+  const cleanupStarted = deferred<void>();
+  const releaseCleanup = deferred<void>();
+  onTestFinished(() => releaseCleanup.resolve());
   const cache = new KunaProjectCache(cacheRoot, {
     maxBytes: 64 * 1024 ** 2,
     launcher: async (options) => {
@@ -1137,7 +1141,8 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
       return {
         ...spawned,
         cleanup: async () => {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          cleanupStarted.resolve();
+          await releaseCleanup.promise;
           await cleanupOwnedProcessGroup(spawned.ownership);
           return { cleaned: false, reason: "first export unverified" };
         },
@@ -1154,6 +1159,7 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
   await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(1);
   first.abort();
   await firstBuild;
+  await cleanupStarted.promise;
 
   // A retry for the same key starts while the first is still stopping.
   const second = new AbortController();
@@ -1165,6 +1171,7 @@ it("reports an abandoned build's unproven cleanup even after a retry replaced it
   await expect.poll(() => callsOf(kuna, "decompile-project")).toHaveLength(2);
   second.abort();
   await secondBuild;
+  releaseCleanup.resolve();
 
   expect(await cache.close()).toMatchObject({
     ok: false,

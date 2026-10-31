@@ -45,6 +45,24 @@ const qlog = (events: unknown[]) =>
     ],
   });
 
+const expectRecoveredCapture = async (
+  call: Awaited<ReturnType<typeof connectLocalToolsMcp>>["call"],
+  path: string,
+): Promise<void> => {
+  const response = await call("inspect_web_network_capture", {
+    capture_path: path,
+    format: "qlog",
+  });
+  expect(response.isError, JSON.stringify(response)).not.toBe(true);
+  const capture = webNetworkCaptureSchema.parse(
+    parseEvidence(response.structuredContent).normalized_result,
+  );
+  expect(capture).toMatchObject({
+    format: "qlog",
+    records: [{ reported: { name: "transport:packet_sent" } }],
+  });
+};
+
 it("does not classify hidden custom event data as incomplete transport facts", async () => {
   const root = await createTestTempDirectory("rea-qlog-hidden-extension-");
   const path = join(root, "input.qlog");
@@ -458,14 +476,7 @@ it("fails whole-capture validation before selection and survives malformed, unsu
   ).toMatchObject({ error: { code: "invalid_request" } });
   await writeFile(path, qlog([event]));
   await client.ping();
-  expect(
-    (
-      await call("inspect_web_network_capture", {
-        capture_path: path,
-        format: "qlog",
-      })
-    ).isError,
-  ).not.toBe(true);
+  await expectRecoveredCapture(call, path);
 }, 60_000);
 
 runtimeTest.skipIf(process.versions.bun !== undefined || !hasMemoryBound)(
@@ -504,14 +515,7 @@ runtimeTest.skipIf(process.versions.bun !== undefined || !hasMemoryBound)(
     });
     await writeFile(path, qlog([event]));
     await client.ping();
-    expect(
-      (
-        await call("inspect_web_network_capture", {
-          capture_path: path,
-          format: "qlog",
-        })
-      ).isError,
-    ).not.toBe(true);
+    await expectRecoveredCapture(call, path);
   },
   60_000,
 );

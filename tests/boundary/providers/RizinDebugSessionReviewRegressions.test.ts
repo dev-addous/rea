@@ -12,6 +12,7 @@ import {
 } from "../../../src/process/ProviderProcess.js";
 import { evidenceSchema } from "../../../src/domain/evidence.js";
 import { absoluteCallerPath } from "../../../src/filesystem/callerPath.js";
+import { createDeferred } from "../../fixtures/binarySession.js";
 import {
   createRizinTestManager,
   rizinTestInferiorTty,
@@ -678,13 +679,16 @@ process.stdin.on("data", (chunk) => {
     expect(started.ok).toBe(true);
     if (!started.ok) return;
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), 50);
-
-    const result = await manager.execute(
+    const pending = manager.execute(
       started.value.session_id,
       "slow",
       controller.signal,
     );
+    await expect
+      .poll(() => manager.status(started.value.session_id)?.output_invalid_utf8)
+      .toBe(true);
+    controller.abort();
+    const result = await pending;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -748,17 +752,26 @@ it.skipIf(process.platform === "win32")(
       `#!/usr/bin/env node\nprocess.stdin.resume();\nsetInterval(() => {}, 1000);\n`,
     );
     await chmod(provider, 0o700);
-    const manager = createRizinTestManager({
-      REA_RIZIN_COMMAND: provider,
-    });
+    const spawned = createDeferred<void>();
+    const manager = createRizinTestManager(
+      { REA_RIZIN_COMMAND: provider },
+      {
+        spawnProcess: async (options) => {
+          const launched = await spawnOwnedProviderProcess(options);
+          spawned.resolve();
+          return launched;
+        },
+      },
+    );
     managers.push(manager);
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), 50);
-
-    const started = await manager.start(
+    const starting = manager.start(
       { path: "/tmp/fixture.bin", inferior_tty: await rizinTestInferiorTty() },
       controller.signal,
     );
+    await spawned.promise;
+    controller.abort();
+    const started = await starting;
 
     expect(started.ok).toBe(false);
     if (!started.ok) expect(started.error._tag).toBe("AnalysisCancelledError");

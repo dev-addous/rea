@@ -65,22 +65,67 @@ const extendedFirstAtomLength = (): Buffer => {
   return extended;
 };
 
-cliTest("reports BEAM exports through the public CLI", async ({ cli }) => {
-  const root = await createTestTempDirectory("rea-beam-cli-");
-  const path = join(root, "app.beam");
-  await writeFile(path, erlangBeamFixture("cli_mod"));
-  const result = await cli.run({
-    arguments: ["inspect-erlang-beam", path, "--json"],
-  });
-  expect(result.exitCode, result.stderr).toBe(0);
-  const evidence = completeBeamEvidenceSchema.parse(result.json);
-  expect(evidence.normalized_result.module).toBe("cli_mod");
-  expect(
-    evidence.normalized_result.exports?.some(
-      (entry) => entry.function === "start" && entry.arity === 0,
-    ),
-  ).toBe(true);
-});
+cliTest(
+  "reports BEAM tables and code through the public CLI",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-beam-cli-");
+    const path = join(root, "app.beam");
+    await writeFile(path, erlangBeamFixture("cli_mod"));
+    const result = await cli.run({
+      arguments: ["inspect-erlang-beam", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = completeBeamEvidenceSchema.parse(result.json);
+    expect(evidence).toMatchObject({
+      confidence: "observed",
+      subject: { local_path: path, format: "file" },
+    });
+    expect(evidence.normalized_result).toMatchObject({
+      atom_encoding: "utf8",
+      module: "cli_mod",
+      atoms: [
+        { name: "cli_mod" },
+        { name: "module_info" },
+        { name: "start" },
+        { name: "erlang" },
+        { name: "get_module_info" },
+      ],
+      lambdas: [
+        expect.objectContaining({
+          function: "start",
+          arity: 1,
+          label: 4,
+          old_unique: 42,
+        }),
+      ],
+      code: {
+        instruction_set: 0,
+        opcode_max: 169,
+        labels: 4,
+        functions: 2,
+        extra_header_bytes: 0,
+        instructions: { bytes: 4 },
+      },
+    });
+    expect(evidence.normalized_result.exports).toEqual([
+      { function_index: 3, function: "start", arity: 0, label: 2 },
+      { function_index: 2, function: "module_info", arity: 0, label: 1 },
+      { function_index: 2, function: "module_info", arity: 1, label: 3 },
+    ]);
+    expect(evidence.normalized_result.imports).toEqual([
+      {
+        module_index: 4,
+        module: "erlang",
+        function_index: 5,
+        function: "get_module_info",
+        arity: 1,
+      },
+    ]);
+    expect(
+      evidence.normalized_result.chunks.map((chunk) => chunk.name),
+    ).toEqual(["AtU8", "Code", "ExpT", "ImpT", "FunT"]);
+  },
+);
 
 cliTest(
   "inspects empty optional BEAM chunks through CLI and MCP without losing source evidence",
@@ -191,6 +236,8 @@ cliTest(
     });
     const atomChunks = report.chunks.filter(({ name }) => name === "AtU8");
     expect(atomChunks).toHaveLength(2);
+    expect(atomChunks[0]?.payload.sha256).toEqual(expect.any(String));
+    expect(atomChunks[1]?.payload.sha256).toEqual(expect.any(String));
     expect(atomChunks[0]?.payload.sha256).not.toBe(
       atomChunks[1]?.payload.sha256,
     );
@@ -220,6 +267,41 @@ cliTest(
     };
     const control = await inspect(controlPath);
     const extended = await inspect(extendedPath);
+    // Golden facts from beam_lib:chunks/2 on the compiler-produced OTP 29 file.
+    expect(control.normalized_result.module).toBe("rea_beam_fixture");
+    expect(control.normalized_result.atoms?.map((atom) => atom.name)).toEqual([
+      "rea_beam_fixture",
+      "hello",
+      "lists",
+      "reverse",
+      "module_info",
+      "erlang",
+      "get_module_info",
+    ]);
+    expect(control.normalized_result.exports).toEqual([
+      { function_index: 5, function: "module_info", arity: 1, label: 6 },
+      { function_index: 5, function: "module_info", arity: 0, label: 4 },
+      { function_index: 2, function: "hello", arity: 1, label: 2 },
+    ]);
+    expect(
+      control.normalized_result.imports?.map((row) => [
+        row.module,
+        row.function,
+        row.arity,
+      ]),
+    ).toEqual([
+      ["lists", "reverse", 1],
+      ["erlang", "get_module_info", 1],
+      ["erlang", "get_module_info", 2],
+    ]);
+    expect(control.normalized_result.code).toMatchObject({
+      instruction_set: 0,
+      opcode_max: 181,
+      labels: 7,
+      functions: 3,
+      extra_header_bytes: 0,
+      instructions: { bytes: 49 },
+    });
     expect(extended.normalized_result.module).toBe("rea_beam_fixture");
     expect(extended.normalized_result.atoms).toEqual(
       control.normalized_result.atoms,
@@ -235,6 +317,12 @@ cliTest(
     );
     expect(extended.normalized_result.artifact.sha256).not.toBe(
       control.normalized_result.artifact.sha256,
+    );
+    expect(extended.normalized_result.chunks[0]?.payload.sha256).toEqual(
+      expect.any(String),
+    );
+    expect(control.normalized_result.chunks[0]?.payload.sha256).toEqual(
+      expect.any(String),
     );
     expect(extended.normalized_result.chunks[0]?.payload.sha256).not.toBe(
       control.normalized_result.chunks[0]?.payload.sha256,

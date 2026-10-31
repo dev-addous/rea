@@ -11,6 +11,7 @@ import { parseEvidence } from "../../../src/domain/evidence.js";
 import { z } from "zod";
 import { artifactExtractionResultSchema } from "../../../src/domain/artifactGraph.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { analysisViewResultSchema } from "../../../src/domain/analysisView/analysisView.js";
 
 // The compiled stdio fixture checks advertised schemas against their dialect and
 // validates actual tool responses, avoiding a second source server module graph.
@@ -58,13 +59,22 @@ it.each(["full", "compact"] as const)(
           kind: "inventory",
           collection: "occurrences",
           logical_paths: ["main.js"],
-          fields: ["format_metadata"],
+          fields: ["logical_path", "format_metadata"],
         },
       });
       expect(retained.isError, JSON.stringify(retained)).not.toBe(true);
-      expect(JSON.stringify(retained.structuredContent)).toContain(
-        "main-script",
+      const view = analysisViewResultSchema.parse(
+        parseEvidence(retained.structuredContent).normalized_result,
       );
+      expect(view).toMatchObject({
+        kind: "inventory",
+        items: [
+          {
+            logical_path: "main.js",
+            format_metadata: { kind: "node-sea-entry", role: "main-script" },
+          },
+        ],
+      });
       const extracted = await call("extract_artifact", {});
       expect(extracted.isError, JSON.stringify(extracted)).not.toBe(true);
       const result = artifactExtractionResultSchema.parse(

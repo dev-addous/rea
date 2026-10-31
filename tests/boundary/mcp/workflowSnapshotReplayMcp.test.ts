@@ -87,21 +87,28 @@ describe("MCP external command snapshot retirement", () => {
       await expect(access(startedPath)).resolves.toBeUndefined();
 
       let closeSettled = false;
+      const closeStarted = createDeferred<void>();
       const closeRequest = mcp
-        .callTool({
-          name: "close_binary",
-          arguments: { snapshot_path: snapshotPath },
-        })
+        .callTool(
+          {
+            name: "close_binary",
+            arguments: { snapshot_path: snapshotPath },
+          },
+          { onprogress: () => closeStarted.resolve() },
+        )
         .finally(() => {
           closeSettled = true;
         });
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(closeSettled).toBe(false);
-      await expect(access(snapshotPath)).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-
-      await writeFile(releasePath, "release");
+      try {
+        // Close queues its transition before sending its first progress event.
+        await closeStarted.promise;
+        expect(closeSettled).toBe(false);
+        await expect(access(snapshotPath)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      } finally {
+        await writeFile(releasePath, "release");
+      }
       const analyzed = await analysisRequest;
       expect(analyzed.isError, JSON.stringify(analyzed.content)).not.toBe(true);
       const evidence = toolContract("execute_rizin_command").outputSchema.parse(

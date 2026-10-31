@@ -260,6 +260,8 @@ describe("compare_functions referenced string decoding", () => {
       status: "changed",
       left_count: 2,
       right_count: 2,
+      left_digest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      right_digest: expect.stringMatching(/^[a-f0-9]{64}$/u),
     });
     expect(stringsNames(changed)?.left_digest).not.toBe(
       stringsNames(changed)?.right_digest,

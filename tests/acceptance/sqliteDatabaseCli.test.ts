@@ -332,6 +332,14 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
     const { call } = await connectLocalToolsMcp();
     const inventory = await call("inspect_sqlite_database", { path });
     expect(inventory.isError).not.toBe(true);
+    const inventoryEvidence = parseEvidence(inventory.structuredContent);
+    expect(inventoryEvidence.parameters).not.toHaveProperty(
+      "worker_timeout_ms",
+    );
+    expect(
+      sqliteDatabaseSchema.parse(inventoryEvidence.normalized_result)
+        .worker_timeout_ms,
+    ).toBe(30_000);
     const schema = z
       .object({
         normalized_result: z.object({

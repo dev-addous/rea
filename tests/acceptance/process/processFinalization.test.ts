@@ -394,23 +394,17 @@ cliCaptureTest.for(["CLI", "MCP"] as const)(
       adapter === "CLI"
         ? await captureViaCli(cli, root, scenario)
         : await captureViaMcp(scenario);
-    if (outcome.kind === "partial") {
-      expect(
-        finalizationFromPartial(outcome.partial),
-        "the cleanup-flake partial observation has no default finalization",
-      ).toBeUndefined();
-      return;
-    }
+    const capture = completedCaptureFromOutcome(outcome);
     expect(
-      outcome.capture.exit,
+      capture.exit,
       "default captures have no finalization evidence",
     ).not.toHaveProperty("finalization");
     expect(
-      outcome.capture.manifest.scenario,
+      capture.manifest.scenario,
       "the committed scenario keeps its legacy identity",
     ).not.toHaveProperty("finalization_ms");
     expect(
-      outcome.capture.manifest.comparison_contract,
+      capture.manifest.comparison_contract,
       "the comparison contract keeps its legacy identity",
     ).not.toHaveProperty("finalization_ms");
   },

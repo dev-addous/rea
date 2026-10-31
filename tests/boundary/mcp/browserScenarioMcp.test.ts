@@ -438,10 +438,13 @@ test("records a completed late-close cancellation as server Evidence", async () 
       browser: { cleanup: "terminated-owned-process" },
     });
     expect(
-      (retained.normalized_result as BrowserScenarioCapture).steps.every(
-        ({ status }) => status === "completed",
+      (retained.normalized_result as BrowserScenarioCapture).steps.map(
+        ({ step_id, status }) => ({ step_id, status }),
       ),
-    ).toBe(true);
+    ).toEqual([
+      { step_id: "scenario_start", status: "completed" },
+      { step_id: "settle", status: "completed" },
+    ]);
     await expect(client.ping()).resolves.toEqual({});
   } finally {
     await Promise.all([client.close(), server.close(), session.close()]);

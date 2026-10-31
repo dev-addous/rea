@@ -151,8 +151,12 @@ it("keeps incomplete calls unknown through public comparison and verification wh
       JSON.stringify(compared.structuredContent),
     ).not.toBe(true);
     const comparison = parseEvidence(compared.structuredContent);
-    expect(session.evidenceById(left.evidence_id)?.subject).not.toBeNull();
-    expect(session.evidenceById(right.evidence_id)?.subject).not.toBeNull();
+    expect(session.evidenceById(left.evidence_id)?.subject).toEqual(
+      expect.any(Object),
+    );
+    expect(session.evidenceById(right.evidence_id)?.subject).toEqual(
+      expect.any(Object),
+    );
     expect(comparison.normalized_result).toMatchObject({
       status: "unknown",
       summary: { unchanged: 7, changed: 0, unknown: 1 },

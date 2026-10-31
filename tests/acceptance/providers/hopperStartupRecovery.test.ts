@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { access, copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
@@ -14,6 +13,15 @@ import { acquireHopperTargetLease } from "../../../src/process/HopperLease.js";
 
 const statusSchema = z.object({ result: z.object({ open: z.boolean() }) });
 const test = workspaceCliTest.skipIf(process.platform !== "darwin");
+
+const stopChild = async (child: ChildProcess) => {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise<void>((resolveExit) =>
+    child.once("exit", () => resolveExit()),
+  );
+  child.kill("SIGKILL");
+  await exited;
+};
 
 test.for(["target", "loader"] as const)(
   "preserves a prepared target or refuses literal-unsafe %s before handoff",
@@ -229,16 +237,8 @@ test.for(["handoff", "not-found"] as const)(
     const mcp = new Client({ name: "hopper-late-readiness", version: "1" });
     const children: ChildProcess[] = [];
     let runtime: string | undefined;
-    const stop = async (child: ChildProcess) => {
-      if (child.exitCode !== null || child.signalCode !== null) return;
-      const exited = new Promise<void>((resolveExit) =>
-        child.once("exit", () => resolveExit()),
-      );
-      child.kill("SIGKILL");
-      await exited;
-    };
     onTestFinished(async () => {
-      await Promise.all(children.map(stop));
+      await Promise.all(children.map(stopChild));
       await mcp.close();
       await transport.close();
       if (runtime !== undefined)
@@ -335,11 +335,18 @@ test.for(["handoff", "not-found"] as const)(
       );
       expect(wrong.exitCode).toBeNull();
       await access(runtime);
-      await stop(wrong);
+      await stopChild(wrong);
       await rm(socket, { force: true });
     }
-    const closing = call("close_binary");
-    await delay(150);
+    let closeStarted!: () => void;
+    const started = new Promise<void>((resolveStarted) => {
+      closeStarted = resolveStarted;
+    });
+    const closing = mcp.callTool(
+      { name: "close_binary", arguments: {} },
+      { onprogress: () => closeStarted() },
+    );
+    await started;
     // A verified close may remove the socket before the fixture can poll it.
     // The successful close and child exit establish the owned bridge outcome.
     const owned = lateBridge(runId);
