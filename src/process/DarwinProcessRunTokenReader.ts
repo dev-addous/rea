@@ -20,6 +20,7 @@ import type {
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import { boundedUtf8Text } from "./boundedUtf8Text.js";
+import { createDarwinHelperCache } from "./DarwinHelperCache.js";
 import { snapshotEnvironment } from "./snapshotEnvironment.js";
 import {
   execFileOutput,
@@ -417,6 +418,12 @@ export const createDarwinProcessRunTokenReader = (
      * reader because cleanup only removes the per-run helper root.
      */
     readonly moduleCachePath?: string;
+    /**
+     * REA-owned per-user directory that reuses a verified compiled helper
+     * across processes. Unset compiles once per reader, as callers selecting
+     * their own compiler, module cache, or write boundary expect.
+     */
+    readonly helperCacheDirectory?: string;
   } = {},
 ) => {
   const compiler = options.compiler ?? {
@@ -429,6 +436,21 @@ export const createDarwinProcessRunTokenReader = (
     environment,
   });
   const moduleCachePath = options.moduleCachePath ?? "";
+  const helperCache =
+    options.helperCacheDirectory === undefined
+      ? undefined
+      : createDarwinHelperCache({
+          directory: options.helperCacheDirectory,
+          sources: sourceFiles,
+          toolchain: {
+            compiler: compiler.kind,
+            executable: compiler.executable,
+            ...(compiler.kind === "swiftc" ? { sdk: compiler.sdkRoot } : {}),
+            // xcrun selects its toolchain and SDK from these.
+            developer_dir: environment.DEVELOPER_DIR ?? "",
+            sdkroot: environment.SDKROOT ?? "",
+          },
+        });
   let root: ProcessReaderRoot | undefined;
   let executable: string | undefined;
   let compilation: ProcessReaderCompilation | undefined;
@@ -489,6 +511,13 @@ export const createDarwinProcessRunTokenReader = (
           "Direct Darwin helper compilation requires absolute REA_DARWIN_SWIFTC_PATH and SDKROOT paths selecting a compatible installed Swift compiler and macOS SDK.",
         );
       }
+      const cached = await helperCache?.lookup();
+      if (signal.aborted || closed) throw abortReason(signal);
+      // A verified shared entry needs no per-run root and is never removed.
+      if (cached?.kind === "hit") {
+        executable = cached.executable;
+        return cached.executable;
+      }
       operationRoot = {
         path: await mkdtemp(join(tmpdir(), "rea-process-token-")),
       };
@@ -532,8 +561,14 @@ export const createDarwinProcessRunTokenReader = (
         throw compilerInspectionError(cause, compilerTimeoutMs, compiler);
       }
       if (signal.aborted || closed) throw abortReason(signal);
-      executable = output;
-      return output;
+      // The per-run root stays owned until close even when the shared copy runs.
+      const shared =
+        cached?.kind === "miss"
+          ? await helperCache?.publish(cached.key, output)
+          : undefined;
+      if (signal.aborted || closed) throw abortReason(signal);
+      executable = shared ?? output;
+      return executable;
     } catch (cause: unknown) {
       operation.primaryFailure = { cause };
       if (operationRoot !== undefined) {
