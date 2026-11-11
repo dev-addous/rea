@@ -143,6 +143,8 @@ export interface MftMetadata {
     "fileNames" | "fileNameCoverage"
   >[];
   readonly omitted_record_headers: number;
+  readonly file_name_count: number;
+  readonly file_name_incomplete_record_count: number;
 }
 
 const text = (ascii: Uint8Array): string =>
@@ -330,6 +332,11 @@ export const parseMftImage = (
       0,
       records.length - MFT_INLINE_HEADER_LIMIT,
     ),
+    file_name_count: records.reduce(
+      (count, record) => count + record.fileNames.length,
+      0,
+    ),
+    file_name_incomplete_record_count: incompleteNames,
   };
 
   return ok({ metadata, recordBytes, records, limitations });

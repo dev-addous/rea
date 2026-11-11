@@ -330,7 +330,7 @@ const ntfsRecordHeaderSchema = z.strictObject({
   }),
 });
 
-/** NTFS $MFT record-header facts; attributes, names and the USN journal are later steps. */
+/** NTFS $MFT record-header and resident file-name coverage facts. */
 export const ntfsMftMetadataSchema = z.strictObject({
   kind: z.literal("ntfs-mft"),
   record_bytes: offset,
@@ -343,6 +343,8 @@ export const ntfsMftMetadataSchema = z.strictObject({
   truncated_tail_bytes: offset,
   record_headers: z.array(ntfsRecordHeaderSchema).max(MFT_INLINE_HEADER_LIMIT),
   omitted_record_headers: offset,
+  file_name_count: offset.exactOptional(),
+  file_name_incomplete_record_count: offset.exactOptional(),
 });
 
 /**
@@ -1085,7 +1087,7 @@ const declarationsByKind: {
   },
   "ntfs-mft": {
     notCompared:
-      "Its fields come from the record headers in the file's own FILE records, which content comparison covers.",
+      "Its fields come from the file's own FILE record headers and resident file-name attributes, which content comparison covers.",
   },
   dfuse: {
     notCompared:
