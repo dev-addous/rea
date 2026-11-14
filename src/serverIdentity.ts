@@ -29,9 +29,10 @@ const compareServerPaths = (
   expected: string,
   observed: string,
 ): "aligned" | "mismatch" | "unknown" => {
-  if (expected === observed) return "aligned";
-  if (process.platform === "win32")
-    return resolve(expected) === observed ? "aligned" : "mismatch";
+  // The runtime normalizes its entrypoint lexically, so a lexical match stays
+  // aligned even when the spelling crosses a symlink before `..`.
+  if (resolve(expected) === observed) return "aligned";
+  if (process.platform === "win32") return "mismatch";
   try {
     const selected = statSync(expected, { bigint: true });
     const running = statSync(observed, { bigint: true });

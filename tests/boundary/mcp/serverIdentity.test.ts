@@ -279,6 +279,18 @@ it.skipIf(process.platform === "win32")(
       state: "unknown",
       reasons: [],
     });
+    // Node resolves its entrypoint lexically, so this spelling runs
+    // scratch/rea.mjs even though traversal through the link leaves scratch.
+    const lexical = join(scratch, "rea.mjs");
+    await writeFile(lexical, "lexical entrypoint");
+    expect(
+      createServerIdentity({
+        catalog: DEFAULT_CATALOG_IDENTITY,
+        startedAt: "2026-07-13T00:00:00.000Z",
+        commandPath: lexical,
+        expected: { server_path: `${scratch}/link/../rea.mjs` },
+      }).alignment,
+    ).toMatchObject({ state: "aligned", reasons: [] });
   },
 );
 
