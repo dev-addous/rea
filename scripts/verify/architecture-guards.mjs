@@ -9,6 +9,7 @@ import {
   recordLoweredBaseline,
 } from "./counted-baseline.mjs";
 import { countKeyedFirstMatches } from "./keyed-first-match.mjs";
+import { countDefaultValidationClients } from "./mcp-client-validation.mjs";
 
 // Architecture guards for the strict-identity / best-effort-inference split.
 // - Composite dedup keys must not NUL-join variable-length or free-form
@@ -582,6 +583,34 @@ checkCounted(
   "verifier-fixture-root",
   verifierScripts,
   /\b(?:mkdtemp(?:Sync)?|createCanonicalTemporaryDirectory)\(|\bPrivateRuntimeRoot\.create\(/gu,
+  [],
+);
+
+// The MCP SDK client compiles every listed tool's output schema on its first
+// tool call. With the default Ajv options, REA's catalog costs gigabytes of
+// allocation per client, so test clients take the lazy, reference-preserving
+// validation from tests/fixtures/mcpSchemaValidation (directly, or through
+// tests/support/mcp/mcpFixture). Tests of the SDK default itself stay listed.
+const listTestFiles = async (dir) => {
+  const output = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) output.push(...(await listTestFiles(path)));
+    else if (entry.name.endsWith(".ts")) output.push(path);
+  }
+  return output;
+};
+const testFiles = await Promise.all(
+  (await listTestFiles(join(root, "tests"))).map(async (path) => ({
+    path: relative(root, path).split(sep).join("/"),
+    content: stripComments(await readFile(path, "utf8")),
+  })),
+);
+checkCounted(
+  "MCP SDK client without shared schema validation in tests (pass createMcpSchemaValidation from tests/fixtures/mcpSchemaValidation or use mcpTest)",
+  "test-mcp-client-default-validation",
+  testFiles,
+  countDefaultValidationClients,
   [],
 );
 
