@@ -5,7 +5,6 @@ import { ConfigurationError } from "../domain/configurationErrors.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import {
   absoluteXdgConfigHome,
-  vscodeUserDirectory,
   type ClientRootContext,
 } from "./ClientConfigRoots.js";
 import { windowsAppDataRoots } from "./MsixPackageStorage.js";
@@ -136,12 +135,6 @@ export const gooseLocation = async (
           "config.yaml",
         );
   return location(path, path);
-};
-export const junieLocation = async (
-  context: McpRegistrationLocationContext,
-): Promise<McpRegistrationGlobalLocation> => {
-  const root = context.environment.JUNIE_HOME || join(context.home, ".junie");
-  return location(join(root, "mcp", "mcp.json"), root);
 };
 /** Fixed relative target precedence used by clients with a single project document. */
 export const fixedProjectLocation =
