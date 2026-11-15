@@ -64,6 +64,7 @@ export {
   stableArtifactInputRecovery,
 } from "./StableArtifactFailure.js";
 export type { RequestField } from "./StableArtifactFailure.js";
+export { selectedFileTargetError } from "./RegularFileErrorProjection.js";
 export { completedStableArtifactObservation } from "./StableArtifactObservation.js";
 export {
   fileAccessFailureReason,
