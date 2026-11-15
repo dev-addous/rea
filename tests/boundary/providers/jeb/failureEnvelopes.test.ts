@@ -7,6 +7,7 @@ import { JEB_ENGINE_TOOLS } from "../../../../src/jeb/JebMcpConnection.js";
 import type { JsonValue } from "../../../../src/domain/jsonValue.js";
 import { createServer } from "../../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../../fixtures/binarySession.js";
+import { createMcpSchemaValidation } from "../../../fixtures/mcpSchemaValidation.js";
 
 const requestSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
@@ -142,7 +143,10 @@ it.each(
       { kind: "session", session },
       { jebAnalysis: provider, environment: {} },
     );
-    const client = new Client({ name: "jeb-failure-contract", version: "1" });
+    const client = new Client(
+      { name: "jeb-failure-contract", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     const input = { path: "./selected target/caller-secret.apk" };
     try {
       const [clientTransport, serverTransport] =

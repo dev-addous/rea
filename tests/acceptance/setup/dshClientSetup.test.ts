@@ -9,6 +9,7 @@ import { z } from "zod";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 import { schemaVerifierEnvironment } from "../../../scripts/lib/mcp-verification-environment.mjs";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 cliTest.for(["setup", "uninstall"] as const)(
   "DSH CLI %s refuses a multi-document patch without losing caller content",
@@ -315,7 +316,10 @@ async function verifyGeneratedLauncher(
     }),
     stderr: "pipe",
   });
-  const client = new Client({ name: "dsh-setup-lifecycle", version: "1" });
+  const client = new Client(
+    { name: "dsh-setup-lifecycle", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   try {
     await client.connect(transport);
     expect((await client.listTools()).tools.map(({ name }) => name)).toContain(

@@ -11,6 +11,7 @@ import { createServer } from "../../src/server/createServer.js";
 import { createTestBinarySession } from "../fixtures/binarySession.js";
 import { advertisedSchemaErrors } from "../fixtures/mcpAdvertisedSchemaValidity.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { createMcpSchemaValidation } from "../fixtures/mcpSchemaValidation.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof fs>();
@@ -137,7 +138,10 @@ it("advertises byte-preserving omissions in valid SDK-converted MCP schemas", as
     throw new Error("Schema discovery must not launch a provider");
   });
   const server = createServer({ kind: "session", session });
-  const client = new Client({ name: "capture-name-bytes", version: "1" });
+  const client = new Client(
+    { name: "capture-name-bytes", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   try {
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

@@ -21,6 +21,7 @@ import { parseEvidence } from "../../src/domain/evidence.js";
 import { advertisedMcpToolSchemas } from "../fixtures/advertisedMcpTool.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { schemaVerifierEnvironment } from "../../scripts/lib/mcp-verification-environment.mjs";
+import { createMcpSchemaValidation } from "../fixtures/mcpSchemaValidation.js";
 
 const execute = promisify(execFile);
 const cli = fileURLToPath(new URL("../../scripts/rea.mjs", import.meta.url));
@@ -130,10 +131,13 @@ it("keeps CLI/MCP selection identity, invalid-input refusals and committed outpu
     }),
     stderr: "pipe",
   });
-  const client = new Client({
-    name: "extraction-selection-test",
-    version: "1",
-  });
+  const client = new Client(
+    {
+      name: "extraction-selection-test",
+      version: "1",
+    },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const output = join(data.root, "mcp-output");
   await withVerifierCleanup(async () => {
     await client.connect(transport);
