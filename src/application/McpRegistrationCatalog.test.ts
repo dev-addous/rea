@@ -666,3 +666,13 @@ it.each([
     expect(result.value[0]?.configPath).toBe(join(home, path));
   },
 );
+
+it("refuses a relative MCPORTER_CONFIG whose file depends on each command's directory", async () => {
+  const { result } = await resolveWith("mcporter", {
+    MCPORTER_CONFIG: "config/selected.json",
+  });
+  expect(result).toMatchObject({
+    ok: false,
+    error: { message: expect.stringContaining("MCPORTER_CONFIG is relative") },
+  });
+});
