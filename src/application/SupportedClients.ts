@@ -59,6 +59,8 @@ export interface SetupClient {
    * detects it, and doctor reports it only when its file holds a `rea` row.
    */
   readonly registrationApplicability?: true;
+  /** The configuration is a private profile: folder 0700, file 0600. */
+  readonly privateProfile?: true;
   /** MSIX package storage that decides which configuration the client reads. */
   readonly msixPackage?: MsixPackageView;
   /** A running client can rewrite its configuration from memory. */
@@ -84,6 +86,7 @@ export interface SetupClient {
     | "dsh"
     | "zed"
     | "amp"
+    | "fx"
     | "unsupported";
 }
 
@@ -149,6 +152,7 @@ interface ClientDefinitionBase {
   readonly discoveryPaths?: (context: ClientPathContext) => readonly string[];
   readonly sharedRegistration?: true;
   readonly registrationApplicability?: true;
+  readonly privateProfile?: true;
   readonly format: NonNullable<SetupClient["format"]>;
   readonly quitBeforeSetup?: boolean;
   readonly zcodeFallbackPath?: (context: ClientPathContext) => string;
@@ -674,6 +678,39 @@ const MCPORTER_STDIO_INCOMPATIBILITIES: readonly NativeStdioIncompatibility[] =
           },
     ),
   ];
+
+/**
+ * fx's profile folder (`useFxHome`): a non-empty `FX_HOME` must be absolute
+ * and name neither the root nor the home folder, ignoring trailing slashes;
+ * otherwise `~/.fx`. fx refuses an invalid value, so REA does too.
+ */
+const fxLocation = ({
+  home,
+  platform,
+  env,
+}: ClientPathContext): Result<ClientLocation, ClientPathFailure> => {
+  const value = env.FX_HOME;
+  const pathApi = platform === "win32" ? win32 : posix;
+  if (!value) {
+    const directory = join(home, ".fx");
+    return ok({
+      configPath: join(directory, "mcp.json"),
+      markerPath: directory,
+    });
+  }
+  const trimmed = value.replace(/\/+$/u, "");
+  if (
+    !pathApi.isAbsolute(value) ||
+    trimmed.length === 0 ||
+    trimmed === home.replace(/\/+$/u, "")
+  )
+    return err({
+      path: value,
+      message:
+        "FX_HOME must be an absolute path other than the root and home folders, as fx requires. Repair FX_HOME before configuring fx; no settings were written.",
+    });
+  return ok({ configPath: join(trimmed, "mcp.json"), markerPath: trimmed });
+};
 
 const freebuffProfileDirectory = ({ home }: ClientPathContext): string =>
   join(home, ".config", "freebuff-desktop");
@@ -1275,6 +1312,28 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "json",
   }),
   defineClient({
+    name: "fx",
+    mcpAdd: {},
+    registrationConnection: {
+      kind: "flat",
+      fields: ["url", "args"],
+      stdio: [
+        { kind: "optional-enum", field: "type", values: ["local", "stdio"] },
+        {
+          kind: "all",
+          conditions: [
+            { kind: "missing", field: "type" },
+            { kind: "present", field: "url" },
+          ],
+        },
+      ],
+    },
+    displayName: "fx",
+    location: fxLocation,
+    privateProfile: true,
+    format: "fx",
+  }),
+  defineClient({
     name: "grok_bot",
     registrationConnection: {
       kind: "unavailable",
@@ -1445,6 +1504,7 @@ export const supportedClients = (
         ...(definition.discoveryPaths === undefined
           ? {}
           : { discoveryPaths: definition.discoveryPaths(context) }),
+        ...(definition.privateProfile === true ? { privateProfile: true } : {}),
         ...(definition.registrationApplicability === true
           ? { registrationApplicability: true }
           : {}),

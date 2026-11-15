@@ -157,25 +157,3 @@ export const fixedProjectLocation =
       ),
     };
   };
-/**
- * fx's profile folder: `$FX_HOME` when set, which fx admits only as an
- * absolute path other than the root and the home folder (`useFxHome`), else
- * `~/.fx`. fx refuses an invalid value, so registration does too.
- */
-export const fxLocation = async (
-  context: McpRegistrationLocationContext,
-): Promise<McpRegistrationGlobalLocation> => {
-  const value = context.environment.FX_HOME;
-  if (!value) return location(join(context.home, ".fx", "mcp.json"));
-  const pathApi = context.platform === "win32" ? win32 : posix;
-  const trimmed = value.replace(/\/+$/u, "");
-  if (
-    !pathApi.isAbsolute(value) ||
-    trimmed.length === 0 ||
-    trimmed === context.home.replace(/\/+$/u, "")
-  )
-    throw new ConfigurationError(
-      "FX_HOME must be an absolute path other than the root and home folders, as fx requires. Repair FX_HOME before registering; no settings were written.",
-    );
-  return location(join(trimmed, "mcp.json"));
-};
