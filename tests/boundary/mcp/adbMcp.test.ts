@@ -331,7 +331,10 @@ it("advertises exact valid ADB schemas and records inline evidence through MCP",
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
-  const client = new Client({ name: "adb-boundary", version: "0.0.0" });
+  const client = new Client(
+    { name: "adb-boundary", version: "0.0.0" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(() => client.close());
   await client.connect(clientTransport);
 
@@ -427,7 +430,10 @@ it("rejects invalid tool input before reaching the provider", async () => {
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
-  const client = new Client({ name: "adb-boundary-invalid", version: "0.0.0" });
+  const client = new Client(
+    { name: "adb-boundary-invalid", version: "0.0.0" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(() => client.close());
   await client.connect(clientTransport);
 

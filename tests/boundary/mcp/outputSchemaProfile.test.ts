@@ -24,6 +24,7 @@ import { FULL_CATALOG_IDENTITY } from "../../../src/catalogIdentity.js";
 import type { McpOutputSchemaProfile } from "../../../src/config/mcpOutputSchemaProfile.js";
 import { advertisedSchemaErrors } from "../../fixtures/mcpAdvertisedSchemaValidity.js";
 import { advertisedInputJsonSchema } from "../../../src/contracts/toolSchemaMetadata.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 const createServer = (
   outputSchemaProfile: McpOutputSchemaProfile,
@@ -47,7 +48,10 @@ it("omits only output schema advertisements and keeps canonical MCP output valid
   );
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "schema-profile-test", version: "1" });
+  const client = new Client(
+    { name: "schema-profile-test", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const contract = {
     ...toolContract("comment"),
     name: "output_schema_fixture",
@@ -111,7 +115,10 @@ it("bounds output schema advertisements and keeps canonical MCP output validatio
   );
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "compact-output-test", version: "1" });
+  const client = new Client(
+    { name: "compact-output-test", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const contract = {
     ...toolContract("comment"),
     name: "compact_output_schema_fixture",
@@ -203,7 +210,10 @@ it("keeps the default compact-input catalog below a measured one-megabyte frame"
     const server = createServer(profile, inputPresentation);
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: "catalog-size-test", version: "1" });
+    const client = new Client(
+      { name: "catalog-size-test", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     for (const contract of TOOL_CONTRACTS)
       server.registerTool(
         contract.name,
@@ -292,7 +302,10 @@ it("rejects canonical-invalid output that the reduced advertisement accepts", as
   const server = createServer("compact");
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "reduced-output-test", version: "1" });
+  const client = new Client(
+    { name: "reduced-output-test", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const contract = {
     ...toolContract("comment"),
     name: "reduced_output_schema_fixture",
@@ -387,7 +400,10 @@ it("omits output schemas by default and still delivers validated structured resu
     { kind: "session", session },
     { environment: { HOME: process.env.HOME }, logger: silentLogger },
   );
-  const client = new Client({ name: "default-output-profile", version: "1" });
+  const client = new Client(
+    { name: "default-output-profile", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(async () => {
     await client.close();
     await server.close();

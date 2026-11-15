@@ -590,7 +590,7 @@ checkCounted(
 // tool call. With the default Ajv options, REA's catalog costs gigabytes of
 // allocation per client, so test clients take the lazy, reference-preserving
 // validation from tests/fixtures/mcpSchemaValidation (directly, or through
-// tests/support/mcp/mcpFixture). Tests of the SDK default itself stay listed.
+// tests/support/mcp/mcpFixture). Tests of the SDK default itself are named owners.
 const listTestFiles = async (dir) => {
   const output = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -611,7 +611,8 @@ checkCounted(
   "test-mcp-client-default-validation",
   testFiles,
   countDefaultValidationClients,
-  [],
+  // Checks the SDK default validator itself across catalog refreshes.
+  ["tests/boundary/mcp/outputValidatorReuse.test.ts"],
 );
 
 if (baselinesShrunk) {

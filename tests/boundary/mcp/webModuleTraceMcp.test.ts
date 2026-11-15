@@ -21,6 +21,7 @@ import {
   completedModuleResolverLauncher,
   webModuleResolverFixture,
 } from "../../fixtures/webModuleTrace.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 it("publishes valid SDK schemas and records the named module trace without a binary target", async () => {
   const artifacts = webModuleArtifactsFixture();
@@ -35,7 +36,10 @@ it("publishes valid SDK schemas and records the named module trace without a bin
     { kind: "session", session },
     { webModuleTrace: service },
   );
-  const client = new Client({ name: "module-contract", version: "1" });
+  const client = new Client(
+    { name: "module-contract", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(async () => {
     await client.close();
     await server.close();
@@ -401,7 +405,10 @@ const createModuleFinalizationHarness = async (
     { kind: "session", session },
     { webModuleTrace: service },
   );
-  const client = new Client({ name: "module-finalization", version: "1" });
+  const client = new Client(
+    { name: "module-finalization", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(async () => {
     allowClose = true;
     allowArtifactClose = true;

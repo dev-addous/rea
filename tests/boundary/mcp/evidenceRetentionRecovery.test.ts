@@ -18,6 +18,7 @@ import { ok } from "../../../src/domain/result.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
 import { createToolResultDelivery } from "../../../src/server/toolResult.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 it.each(["compact", "full"] as const)(
   "delivers authenticated but unretained provider Evidence inline (%s schema)",
@@ -49,7 +50,10 @@ it.each(["compact", "full"] as const)(
         environment: { ...process.env, REA_MCP_OUTPUT_SCHEMA_PROFILE: profile },
       },
     );
-    const client = new Client({ name: "unretained-evidence", version: "1" });
+    const client = new Client(
+      { name: "unretained-evidence", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     const [ct, st] = InMemoryTransport.createLinkedPair();
     try {
       await server.connect(st);
@@ -138,10 +142,13 @@ it("keeps an oversized unretained observation failure bounded and the connection
   const records = new InvestigationRecords({ maximumRepresentationBytes: 0 });
   const session = new BinarySession(router, records);
   const server = createServer({ kind: "session", session });
-  const client = new Client({
-    name: "unretained-evidence-overflow",
-    version: "1",
-  });
+  const client = new Client(
+    {
+      name: "unretained-evidence-overflow",
+      version: "1",
+    },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const [ct, st] = InMemoryTransport.createLinkedPair();
   try {
     await server.connect(st);
@@ -228,7 +235,10 @@ it("bounds fallback when the retention error itself has oversized diagnostics", 
     { inputSchema: z.object({}) },
     async () => delivery.toErrorToolResult(refused.error, true),
   );
-  const client = new Client({ name: "retention-overflow", version: "1" });
+  const client = new Client(
+    { name: "retention-overflow", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   const [ct, st] = InMemoryTransport.createLinkedPair();
   try {
     await server.connect(st);

@@ -13,6 +13,7 @@ import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysis
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { SESSION_TOOL_CONTRACTS } from "../../../src/contracts/sessionToolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 it.each(["compact", "full"] as const)(
   "preserves retained siblings and capacity recovery (%s schema)",
@@ -71,7 +72,10 @@ it.each(["compact", "full"] as const)(
         environment: { ...process.env, REA_MCP_OUTPUT_SCHEMA_PROFILE: profile },
       },
     );
-    const client = new Client({ name: "context-capacity", version: "1" });
+    const client = new Client(
+      { name: "context-capacity", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
     try {

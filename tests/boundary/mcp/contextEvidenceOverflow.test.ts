@@ -12,6 +12,7 @@ import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { err, ok } from "../../../src/domain/result.js";
 import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysisErrorCore.js";
 import { createServer } from "../../../src/server/createServer.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 const verifyContext = (
   content: unknown,
@@ -168,7 +169,10 @@ it.each([
         },
       },
     );
-    const client = new Client({ name: "context-capacity", version: "1" });
+    const client = new Client(
+      { name: "context-capacity", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
     try {
@@ -261,10 +265,13 @@ it.each([true, false])(
       { kind: "session", session },
       { environment: { ...process.env, REA_MCP_TOOL_FAMILIES: "session" } },
     );
-    const client = new Client({
-      name: "context-oversize-success",
-      version: "1",
-    });
+    const client = new Client(
+      {
+        name: "context-oversize-success",
+        version: "1",
+      },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     const [ct, st] = InMemoryTransport.createLinkedPair();
     try {
       await server.connect(st);

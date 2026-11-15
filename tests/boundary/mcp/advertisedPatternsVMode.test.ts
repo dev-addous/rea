@@ -12,6 +12,7 @@ import {
   INVALID_CANONICAL_BASE64_PAD_BITS_PATTERN,
 } from "../../../src/domain/stringPatterns.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 // Pattern portability across every profile is owned by
 // advertisedDialect.test.ts. This file keeps the composed canonical base64
@@ -56,7 +57,10 @@ const listAdvertisedTools = async () => {
     throw new Error("No deep provider may start for a schema projection");
   });
   const server = createServer({ kind: "session", session }, {});
-  const client = new Client({ name: "advertised-patterns", version: "1" });
+  const client = new Client(
+    { name: "advertised-patterns", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(async () => {
     await client.close();
     await server.close();

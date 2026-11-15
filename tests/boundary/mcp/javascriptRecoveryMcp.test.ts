@@ -12,6 +12,7 @@ import {
   assertRecoveryCleanup,
   recoveryFixture,
 } from "../../fixtures/javascript-recovery/provider.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 it
   .skipIf(process.platform !== "linux" || process.arch !== "x64")
@@ -28,7 +29,10 @@ it
         javascriptRecovery: fixture.provider,
       },
     );
-    const client = new Client({ name: "recovery-contract", version: "1" });
+    const client = new Client(
+      { name: "recovery-contract", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     onTestFinished(async () => {
       await client.close();
       await server.close();
@@ -102,7 +106,10 @@ it.skipIf(process.platform !== "linux" || process.arch !== "x64")(
         javascriptRecovery: fixture.provider,
       },
     );
-    const client = new Client({ name: "recovery-denied", version: "1" });
+    const client = new Client(
+      { name: "recovery-denied", version: "1" },
+      { jsonSchemaValidator: createMcpSchemaValidation() },
+    );
     onTestFinished(async () => {
       await client.close();
       await server.close();

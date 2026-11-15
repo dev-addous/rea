@@ -17,6 +17,7 @@ import { mcpToolCatalogProfileSchema } from "../../../src/config/mcpToolCatalogP
 import { createServer } from "../../../src/server/createServer.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
+import { createMcpSchemaValidation } from "../../fixtures/mcpSchemaValidation.js";
 
 describe("portable regex grammar", () => {
   // Each refused construct failed to compile in at least one of V8 (plain,
@@ -136,7 +137,10 @@ const listTools = async (environment: Readonly<NodeJS.ProcessEnv>) => {
     { kind: "session", session },
     { environment, logger: silentLogger },
   );
-  const client = new Client({ name: "advertised-dialect", version: "1" });
+  const client = new Client(
+    { name: "advertised-dialect", version: "1" },
+    { jsonSchemaValidator: createMcpSchemaValidation() },
+  );
   onTestFinished(async () => {
     await client.close();
     await server.close();
