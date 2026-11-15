@@ -500,5 +500,10 @@
     "src/signals/SigrokRecordingProvider.ts": 1,
     "src/signals/parseDecoderDiscovery.ts": 1,
     "src/v8/V8CodeCache.errors.ts": 1
+  },
+  "ad-hoc-ellipsis": {
+    "src/application/environment/environmentTools.ts": 1,
+    "src/artifacts/ArtifactPaths.ts": 1,
+    "src/artifacts/AsarListing.ts": 1
   }
 }

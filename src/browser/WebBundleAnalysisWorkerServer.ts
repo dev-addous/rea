@@ -1,3 +1,4 @@
+import { ellipsisExcerpt } from "../domain/excerpt.js";
 import type { JavaScriptSemanticPrecisionInput } from "../domain/javascript/javascriptSemanticPrecision.js";
 import { fitJavaScriptRouteSourceFacts } from "../domain/javascript/javascriptRouteResultBudget.js";
 import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
@@ -228,8 +229,7 @@ const analyzeJob = async (
       ...(refusal?.reportedLimits == null
         ? {}
         : { limits: { ...refusal.reportedLimits } }),
-      message:
-        rawMessage.length > 2048 ? `${rawMessage.slice(0, 2048)}…` : rawMessage,
+      message: ellipsisExcerpt(rawMessage, 2048),
     });
     return !fatalCleanupFailure;
   }
