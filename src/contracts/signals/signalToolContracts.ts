@@ -7,12 +7,19 @@ import {
   signalRecordingSchema,
 } from "../../domain/signals/signalRecording.js";
 import type { ToolContract } from "../toolContractTypes.js";
-import { toolContractMetadata } from "../toolEffects.js";
+import { toolContractMetadata, toolEffects } from "../toolEffects.js";
 import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
 export const SIGNAL_TOOL_CONTRACTS = [
   {
     name: "inspect_signal_decoders",
-    ...toolContractMetadata("inspect_signal_decoders"),
+    ...toolContractMetadata(
+      "inspect_signal_decoders",
+      toolEffects({
+        mutatesSession: true,
+        launchesProcess: true,
+        writesFilesystem: true,
+      }),
+    ),
     kind: "artifact-provider",
     requiresActiveTarget: true,
     description:
@@ -29,7 +36,14 @@ export const SIGNAL_TOOL_CONTRACTS = [
   },
   {
     name: "decode_signal_recording",
-    ...toolContractMetadata("decode_signal_recording"),
+    ...toolContractMetadata(
+      "decode_signal_recording",
+      toolEffects({
+        mutatesSession: true,
+        launchesProcess: true,
+        writesFilesystem: true,
+      }),
+    ),
     kind: "artifact-provider",
     requiresActiveTarget: true,
     description:
