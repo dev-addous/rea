@@ -9,7 +9,7 @@ import { it, expect, onTestFinished } from "vitest";
 import { writeFile, readFile, readdir, chmod, symlink } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join } from "node:path";
-import { readStableArtifact } from "../../../src/artifacts/readStableArtifact.js";
+import { readStableArtifact } from "../../../src/resources/readStableArtifact.js";
 import { SigrokRecordingProvider } from "../../../src/signals/SigrokRecordingProvider.js";
 import { SignalRecordingService } from "../../../src/application/signals/SignalRecordingService.js";
 import {
@@ -1338,6 +1338,10 @@ it.each([
   if (mode === "line-budget") {
     expect(result.error).toMatchObject({
       _tag: "AnalysisResourceConstraintError",
+      resource: "memory",
+      reason: "Decoder discovery exceeds the 65,536-line representation budget",
+      reportedLimits: { line_budget: 65536 },
+      fixedAllowance: { kind: "capture" },
     });
     expect(result.error.capturedOutput?.stdout).toBe(
       "ID: uart" + "\n".repeat(65536),

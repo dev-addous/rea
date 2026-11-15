@@ -7,14 +7,14 @@ import {
   mappedFileOffset,
   imageFileMappings,
   readMappedCString,
-} from "../metadata/BinaryContainer.js";
+} from "../../domain/binaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
-import { readElfStringBytes } from "../metadata/ElfStringTable.js";
+import { readElfStringBytes } from "../../domain/native/elfStringBytes.js";
 import { readElfSymbol } from "../../domain/elfSymbol.js";
 import {
   readElfDirectoryFromBuffer,
   type NativeSection,
-} from "../metadata/NativeSectionDirectory.js";
+} from "../../domain/native/nativeSectionDirectory.js";
 import { readPeImage } from "../metadata/PeImage.js";
 import {
   allKeyed,

@@ -9,7 +9,7 @@ import type {
   AndroidJniTableSlot,
 } from "../../domain/android/androidJniLibraryFacts.js";
 import { parseNativeExportsSteps } from "../exports/NativeExportParser.js";
-import { readElfDirectoryFromBuffer } from "../metadata/NativeSectionDirectory.js";
+import { readElfDirectoryFromBuffer } from "../../domain/native/nativeSectionDirectory.js";
 import { readElfImage } from "../metadata/ElfImage.js";
 import {
   BinaryFormatFailure,
@@ -17,7 +17,7 @@ import {
   BinaryResourceFailure,
   isBinaryStringReadLimit,
   createFileMappingIndex,
-} from "../metadata/BinaryContainer.js";
+} from "../../domain/binaryContainer.js";
 import {
   readElfPointerRelocationsSteps,
   ElfPointerRelocationFailure,
